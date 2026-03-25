@@ -1,0 +1,143 @@
+/* Layout Styling */
+.user-management-page { 
+  padding: 30px; 
+  background-color: #f9fafb;
+  min-height: 100vh;
+}
+
+.page-header { 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center; 
+  margin-bottom: 25px; 
+}
+
+.add-user-btn {
+  background: #3b82f6; 
+  color: white; 
+  border: none; 
+  padding: 12px 24px;
+  border-radius: 8px; 
+  font-weight: 600; 
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.add-user-btn:hover {
+  background: #2563eb;
+}
+
+/* --- TABLE STYLING (The fix for your borders) --- */
+.table-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  overflow: hidden; /* Keeps rounded corners */
+  padding: 20px;
+}
+.text-active{
+padding: 8px 12px;
+border-radius: 5px;
+background-color: red;
+}
+.text-delete{
+  padding: 8px 12px;
+border-radius: 5px;
+background-color:#16a34a
+}
+.user-table {
+  width: 100%;
+  border-collapse: collapse; /* CRITICAL: Merges double lines into single borders */
+  margin-top: 10px;
+}
+
+.user-table th, 
+.user-table td {
+  padding: 15px;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb; /* Horizontal lines */
+  border-right: 1px solid #f3f4f6;  /* Optional: Vertical lines */
+}
+
+.user-table th {
+  background-color: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+}
+
+.user-table tr:hover {
+  background-color: #f1f5f9; /* Highlights row on hover */
+}
+
+/* Status Tags */
+.role-tag {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.role-tag.admin { background: #fee2e2; color: #dc2626; }
+.role-tag.manager { background: #fef3c7; color: #d97706; }
+.role-tag.staff { background: #dcfce7; color: #16a34a; }
+
+/* Modal Overlay */
+.modal-overlay {
+  position: fixed; 
+  top: 0; 
+  left: 0; 
+  width: 100%; 
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6); 
+  display: flex; 
+  justify-content: center; 
+  align-items: center; 
+  z-index: 2000;
+  backdrop-filter: blur(4px); /* Modern blur effect */
+}
+
+.modal-content {
+  background: white; 
+  padding: 30px; 
+  border-radius: 16px;
+  width: 550px; 
+  box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+}
+
+.modal-header { 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center;
+  margin-bottom: 20px; 
+  border-bottom: 1px solid #f3f4f6; 
+  padding-bottom: 15px; 
+}
+
+.close-x { background: none; border: none; font-size: 28px; cursor: pointer; color: #94a3b8; }
+
+/* Form inside Modal */
+.modal-form { display: flex; flex-direction: column; gap: 15px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+
+.modal-form input, 
+.modal-form select, 
+.modal-form textarea {
+  padding: 12px; 
+  border: 1px solid #e2e8f0; 
+  border-radius: 8px; 
+  width: 100%;
+  font-size: 14px;
+}
+
+.modal-form input:focus {
+  outline: 2px solid #3b82f6;
+  border-color: transparent;
+}
+
+.modal-footer { display: flex; justify-content: flex-end; gap: 12px; margin-top: 25px; }
+.btn-save { background: #10b981; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+.btn-cancel { background: #f3f4f6; color: #4b5563; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; }
