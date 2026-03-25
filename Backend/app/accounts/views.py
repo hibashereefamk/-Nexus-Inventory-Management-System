@@ -159,7 +159,7 @@ class LogoutView(APIView):
 
 
 class ResendOTPView(APIView):
-
+    permission_classes = [AllowAny]
     def post(self, request):
         email = request.data.get('email')
         
