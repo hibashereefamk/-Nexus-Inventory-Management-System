@@ -187,10 +187,6 @@ class ResendOTPView(APIView):
             return Response({"error": "No user found with this email."}, status=status.HTTP_404_NOT_FOUND)
 
 
-
-
-
-
 class RequestPasswordResetEmailView(APIView):
     def post(self, request):
         email = request.data.get('email')
