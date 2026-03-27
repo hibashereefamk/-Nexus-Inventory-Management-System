@@ -1,0 +1,149 @@
+.top-navbar {
+  height: 60px;
+  background: white;
+  color: black;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 20px;
+}
+
+.top-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+/* Notification */
+.notification {
+  position: relative;
+  cursor: pointer;
+}
+
+.bell {
+  font-size: 20px;
+}
+
+.badge {
+  position: absolute;
+  top: -5px;
+  right: -8px;
+  background: red;
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 50%;
+}
+
+/* Profile */
+.profile-menu {
+  position: relative;
+  cursor: pointer;
+}
+
+.avatar {
+  background: #3b82f6;
+  width: 35px;
+  height: 35px;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: bold;
+}
+
+.dropdown {
+  position: absolute;
+  top: 45px;
+  right: 0;
+  background: white;
+  color: black;
+  border-radius: 8px;
+  width: 150px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.dropdown p {
+  padding: 10px;
+  cursor: pointer;
+}
+
+.dropdown p:hover {
+  background: #f1f5f9;
+}
+
+/* LEFT SEARCH */
+.top-left {
+  flex: 1;
+}
+
+.search-box {
+  width: 300px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  outline: none;
+}
+
+/* RIGHT ITEMS */
+.top-right {
+  display: flex;
+  align-items: center;
+  gap: 25px;
+}
+
+/* NAV ITEM (Notification / Help) */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  position: relative;
+}
+
+.icon {
+  font-size: 18px;
+}
+
+/* BADGE */
+.badge {
+  position: absolute;
+  top: -5px;
+  right: -10px;
+  background: red;
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 50%;
+}
+
+/* PROFILE */
+.profile-menu {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+/* AVATAR SMALL */
+.avatar {
+  background: #3b82f6;
+  color: white;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* DROPDOWN */
+.dropdown {
+  position: absolute;
+  top: 50px;
+  right: 0;
+  width: 160px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}

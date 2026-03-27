@@ -27,8 +27,11 @@ function Login() {
     if (data.username) {
     localStorage.setItem('username', data.username);
   }
+  if (data.department_name){
+    localStorage.setItem("department_name",data.department_name)
+  }
     console.log("Login Success Data:", data);
-    alert("Login successful!");
+    alert("Login successful!",data);
     navigate("/");
   };
  

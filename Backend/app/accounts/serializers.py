@@ -7,11 +7,12 @@ from django.utils import timezone
 
 class UserSerializer(serializers.ModelSerializer):
     role_display = serializers.CharField(source='get_role_display', read_only=True)
+    department_name = serializers.ReadOnlyField(source='department.name')
     class Meta:
         model =User
         fields=[
             'id','username','email','role','role_display','phone','address','bio',
-            'profile_picture','department','is_active','is_verified'
+            'profile_picture','department_name','is_active','is_verified'
         ]
 
     def create(self,validated_data):

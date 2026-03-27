@@ -138,6 +138,7 @@ class LoginAPIView(APIView):
                 'role_display': user.get_role_display(),
                 'username': user.username,
                 'profile_pic': user.profile_picture.url if user.profile_picture else None,
+                'department_name':user.department.name if user.department else None,
                 "message": "Login successful"
             }, status=status.HTTP_200_OK)
            

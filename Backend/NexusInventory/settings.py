@@ -44,7 +44,11 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'app.accounts.apps.AccountsConfig',
+    'app.reports.apps.ReportsConfig',
+    'app.requests.apps.RequestsConfig',
+    'app.shipments.apps.ShipmentsConfig',
     'app.inventory.apps.InventoryConfig',
+    'app.tasks.apps.TasksConfig',
 ]
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (

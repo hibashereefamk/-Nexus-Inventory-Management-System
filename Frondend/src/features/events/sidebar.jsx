@@ -45,9 +45,11 @@ const menuItems = menuConfig[userRole] || [{ title: "Dashboard", icon: "🏠" }]
           <span className="brand-name">NEXUS</span>
           <span className="brand-sub">INVENTORY</span>
         </div>
-      </div>
 
-      {/* NEW: User Profile Section */}
+      </div>
+      <hr style={{ border: '1px solid #9c9b9b', margin: '10px 0' }} />
+      
+      {/* NEW: User Profile Section
       <div className="sidebar-profile">
         <div className="profile-avatar-container">
           {profilePic ? (
@@ -61,7 +63,7 @@ const menuItems = menuConfig[userRole] || [{ title: "Dashboard", icon: "🏠" }]
           <p className="profile-username">{username}</p>
           <span className={`role-badge ${userRoleDisplay}`}>{userRoleDisplay.replace('_', ' ')}</span>
         </div>
-      </div>
+      </div> */}
 
       {/* Navigation */}
       <nav className="sidebar-nav">
@@ -77,12 +79,12 @@ const menuItems = menuConfig[userRole] || [{ title: "Dashboard", icon: "🏠" }]
         </ul>
       </nav>
 
-      <div className="sidebar-footer">
+      {/* <div className="sidebar-footer">
         <button onClick={handleLogout} className="logout-btn">
           <span className="logout-icon">⏻</span>
           <span>Sign Out</span>
         </button>
-      </div>
+      </div> */}
     </div>
   );
 };
