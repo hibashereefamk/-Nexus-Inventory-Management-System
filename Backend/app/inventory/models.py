@@ -6,7 +6,10 @@ from datetime import timedelta
 
 class Category(models.Model):
     name = models.CharField(max_length=100)
-    description = models.TextField() # Fixed spelling from 'discription'
+    description = models.TextField() 
+    department = models.ForeignKey(Department, on_delete=models.CASCADE, null=True, 
+        blank=True
+    )
 
     def __str__(self):
         return self.name
