@@ -5,8 +5,8 @@ from app.inventory.models import Product,Category
 
 class ShipmentTask(models.Model):
     order_number = models.CharField(max_length=100, unique=True, default="ORD-001")
-    manager = models.ForeignKey(User, on_user=models.CASCADE, related_name='created_tasks')
-    staff_assigned = models.ForeignKey(User, on_delete=models.CASCADE, related_name='my_tasks')
+    manager = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_tasks')
+    staff_assigned = models.ForeignKey(User, on_delete=models.CASCADE, related_name='shipment_tasks')
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
 
     product = models.ForeignKey(Product, on_delete=models.CASCADE)

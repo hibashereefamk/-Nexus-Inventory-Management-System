@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import Product
-from app.inventory.seriliazers import ShipmentTask
+from app.shipments.models import ShipmentTask
 
 class ProductSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source='department.name', read_only=True)

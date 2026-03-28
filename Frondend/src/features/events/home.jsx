@@ -1,36 +1,35 @@
-
-
-
+import React from 'react';
+import AdminStats from './AdminStats';
+import ManagerWorkflow from './ManagerWorkflow';
+import StaffPackingQueue from './StaffPackingQueue';
 function Home() {
+  const userRole = localStorage.getItem('role');
+  const userDept = localStorage.getItem('department_name');
+
   return (
-    <div className="main-content">
-      <header style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '30px' }}>
-        <h2>DASHBOARD</h2>
-        <div className="user-profile-top">Staff - Food Dept</div>
+    <div className="dashboard-container">
+      <header>
+        <h1>{userRole.toUpperCase()} DASHBOARD</h1>
+        <p>Current Department: {userDept}</p>
       </header>
+      {userRole === 'admin' && (
+        <section className="admin-section">
+          <AdminStats />
+        </section>
+      )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-        {/* Task Card 1 */}
-        <div className="stat-card">
-          <div style={{ fontSize: '48px', fontWeight: 'bold', marginRight: '15px' }}>14</div>
-          <div>
-            <strong>Shipments Due</strong>
-            <p style={{ color: '#666', margin: 0 }}>4 High Priority</p>
-          </div>
-          <div style={{ marginLeft: 'auto', opacity: 0.5 }}>🚚</div>
-        </div>
+      {(userRole === 'manager' || userRole === 'admin') && (
+        <section className="manager-section">
+          <ManagerWorkflow /> 
+        </section>
+      )}
 
-        {/* Task Card 2 */}
-        <div className="stat-card">
-          <div style={{ fontSize: '48px', fontWeight: 'bold', marginRight: '15px' }}>26</div>
-          <div>
-            <strong>Expiring Soon</strong>
-            <p style={{ color: '#666', margin: 0 }}>Within 7 Days</p>
-          </div>
-          <div style={{ marginLeft: 'auto', opacity: 0.5 }}>📅</div>
-        </div>
-      </div>
+      {(userRole === 'staff' || userRole === 'manager') && (
+        <section className="staff-section">
+          <StaffPackingQueue/> 
+        </section>
+      )}
     </div>
   );
-}
+};
 export default Home;
