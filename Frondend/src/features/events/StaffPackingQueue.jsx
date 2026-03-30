@@ -30,7 +30,11 @@ function StaffPackingQueue() {
   useEffect(() => { fetchDashboardData(); }, []);
 
   if (loading) return <div className="p-10 text-center font-sans text-gray-400">Loading Dashboard...</div>;
-
+const handleCompleteShipment = async (taskId, requirements) => {
+    // requirements = { is_expiry_checked: true, ... }
+    await axios.patch(`/api/shipments/${taskId}/complete/`, requirements);
+    alert("Stock deducted and shipment marked as completed!");
+};
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans text-[#334155]">
       {/* 🔷 TOP NAVIGATION BAR AREA (Mock) */}
@@ -66,20 +70,22 @@ function StaffPackingQueue() {
             <h2 className="text-sm font-bold uppercase tracking-widest">Packing Workflow</h2>
           </div>
           
-          <div className="grid grid-cols-1 lg:grid-cols-3 divide-x divide-gray-100">
-            <WorkflowColumn 
-                title="Pending" 
-                items={tasks.filter(t => t.status === 'PENDING')} 
-            />
-            <WorkflowColumn 
-                title="Packing" 
-                items={tasks.filter(t => t.status === 'PACKING')} 
-            />
-            <WorkflowColumn 
-                title="Packed" 
-                items={tasks.filter(t => t.status === 'PACKED')} 
-            />
-          </div>
+          {/* 🔷 PACKING WORKFLOW (Kanban) */}
+<div className="grid grid-cols-1 lg:grid-cols-3 divide-x divide-gray-100">
+    <WorkflowColumn 
+        title="Pending" 
+        items={tasks.filter(t => t.status === 'PENDING')} 
+    />
+    <WorkflowColumn 
+        title="Packing" 
+        items={tasks.filter(t => t.status === 'PACKING')} 
+    />
+    <WorkflowColumn 
+        title="Packed" 
+        items={tasks.filter(t => t.status === 'PACKED')} 
+        onComplete={handleCompleteShipment} // 👈 USE IT HERE
+    />
+</div>
         </div>
 
         {/* 🔷 RECENT ACTIVITY (Table) */}
@@ -129,26 +135,29 @@ const BannerCard = ({ count, label, subText, icon }) => (
     <div className="text-5xl opacity-40 grayscale">{icon}</div>
   </div>
 );
-
-const WorkflowColumn = ({ title, items }) => (
+// Update the sub-component definition
+const WorkflowColumn = ({ title, items, onComplete }) => (
   <div className="p-6 bg-white min-h-[300px]">
-    <h3 className="text-xs font-bold text-gray-400 uppercase mb-4 tracking-widest">'{title}'</h3>
+    <h3 className="text-xs font-bold text-gray-400 uppercase mb-4 tracking-widest">{title}</h3>
     <div className="space-y-4">
       {items.map(task => (
-        <div key={task.id} className="group border border-gray-200 rounded-xl p-4 hover:border-blue-400 hover:shadow-md transition-all cursor-pointer">
+        <div key={task.id} className="group border border-gray-200 rounded-xl p-4 hover:border-blue-400 transition-all">
           <div className="flex justify-between items-start mb-3">
-             <span className="font-bold text-gray-800">Order #{task.order_number.split('-')[1]}</span>
-             <span className="text-[10px] uppercase font-bold text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded">Priority</span>
+             <span className="font-bold text-gray-800">Order #{task.order_number}</span>
           </div>
-          <div className="text-[11px] text-gray-400 space-y-1">
-            <p>Status: <span className="text-gray-600 font-semibold">{task.status}</span></p>
-            <p>Customer Name: <span className="text-gray-600">John Doe</span></p>
-          </div>
+          
+          {/* 🔷 Trigger the API call only in the 'Packed' column */}
+          {title === "Packed" && (
+            <button 
+              onClick={() => onComplete(task.id, { is_expiry_checked: true })} 
+              className="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold py-2 rounded shadow-sm"
+            >
+              SHIP NOW
+            </button>
+          )}
         </div>
       ))}
-      {items.length === 0 && <div className="border-2 border-dashed border-gray-100 rounded-xl h-24 flex items-center justify-center text-xs text-gray-300 uppercase font-bold italic">Empty</div>}
     </div>
   </div>
 );
-
 export default StaffPackingQueue;

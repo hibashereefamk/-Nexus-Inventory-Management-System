@@ -13,8 +13,26 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 from pathlib import Path
 from datetime import timedelta
 
+from celery.schedules import crontab
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+CELERY_BEAT_SCHEDULE = {
+    'check-stock-every-hour': {
+        'task': 'app.inventory.tasks.monitor_expiry_and_stock',
+        'schedule': 3600.0,
+    },
+    'daily-expiry-check': {
+        'task': 'app.inventory.tasks.check_expiry_and_overdue',
+        'schedule': crontab(hour=0, minute=0),
+    },
+    'monitor-overdue-and-expiry-every-hour': {
+        'task': 'app.inventory.tasks.monitor_system_health',
+        'schedule': 3600.0, # Every hour
+    },
+    'check-system-health-every-30-mins': {
+        'task': 'app.inventory.tasks.monitor_system_health',
+        'schedule': 1800.0,  # 1800 seconds = 30 minutes
+    },
+}
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -67,7 +85,15 @@ REST_FRAMEWORK = {
 
 
 }
-AUTH_USER_MODEL = 'accounts.User'
+
+# settings.py
+CELERY_BROKER_URL = 'redis://127.0.0.1:6379/0' # Add this line!
+CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
+CELERY_TASK_TRACK_STARTED = True
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC' 
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

@@ -50,7 +50,9 @@ class Product(models.Model):
     assigned_at = models.DateTimeField(null=True, blank=True)
     shipped_date = models.DateTimeField(null=True, blank=True)
     quantity_to_ship = models.PositiveIntegerField(default=1)
-    
+    is_overdue = models.BooleanField(default=False)
+
+
     @property
     def is_low_stock(self):
         return self.total_stock <= self.min_stock_level
@@ -115,9 +117,14 @@ class Product(models.Model):
 
 class Notification(models.Model):
     TYPES = [('LOW_STOCK', 'Low Stock'), ('DAMAGE', 'Damage'), ('EXPIRY', 'Expired')]
+
     title = models.CharField(max_length=100)
     message = models.TextField()
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
+
+    notification_type = models.CharField(max_length=20, choices=TYPES ,null=True, blank=True)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, null=True, blank=True)
+
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
