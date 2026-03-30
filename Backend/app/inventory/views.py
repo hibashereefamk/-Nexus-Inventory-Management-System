@@ -1,26 +1,14 @@
 from rest_framework import generics, permissions
 from rest_framework.views import APIView
-from .models import Product
+from .models import Product,IssueReport
 from rest_framework.response import Response
 from rest_framework import status
-from app.inventory.seriliazers import ShipmentTask
 from app.accounts.permissions import IsManager,IsStaffFromDepartment,IsSuperAdmin
-from .seriliazers import ShipmentTaskSerializer,ProductSerializer
+from .seriliazers import ProductSerializer,CategorySerializer,NotificationSerializer,IssueReportserializer
+
 from django.utils import timezone
 
-class ManagerAssignmentView(generics.CreateAPIView):
-    serializer_class = ShipmentTaskSerializer
-    permission_classes = [permissions.IsAuthenticated]
 
-    def perform_create(self, serializer):
-        serializer.save(manager=self.request.user)
-
-class StaffTaskListView(generics.ListAPIView):
-    serializer_class = ShipmentTaskSerializer
-
-    def get_queryset(self):
-        user = self.request.user
-        return ShipmentTask.objects.filter(staff_assigned=user, department=user.department)
     
 class Productview(APIView):
     serializer_class = ProductSerializer
@@ -46,18 +34,23 @@ class Productview(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     def patch(self, request, pk):
-        product = Product.objects.get(pk=pk)
-        data = request.data
+        try:
+            product = Product.objects.get(pk=pk)
+        except Product.DoesNotExist:
+            return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
         
-        if data.get('status') == 'PACKED':
+        data = request.data
+        new_status = data.get('status')
+        if new_status == 'PACKED':
             product.assigned_at = timezone.now()
         
-        if data.get('status') == 'FLAGGED':
+        if new_status == 'FLAGGED':
             if not data.get('damage_notes'):
                 return Response({"error": "You must provide damage notes to flag an item."}, 
                                 status=status.HTTP_400_BAD_REQUEST)
 
-        if data.get('status') == 'SHIPPED':
+        # Logic for SHIPPED (Stock Deduction)
+        if new_status == 'SHIPPED':
             quantity = int(data.get('quantity_to_ship', product.quantity_to_ship))
             if product.total_stock < quantity:
                 return Response({"error": "Not enough stock to ship!"}, status=status.HTTP_400_BAD_REQUEST)
@@ -71,3 +64,24 @@ class Productview(APIView):
             return Response(serializer.data)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+class IssueReportCreateView(generics.CreateAPIView):
+    queryset =IssueReport.objects.all()
+    serializer_class =IssueReportserializer
+    permission_classes =[IsStaffFromDepartment]
+
+    def perform_create(self, serializer):
+        serializer.save(
+            reported_by = self.request.user,
+            department = self.request.user.department
+        )
+    
+class ManagerIssueListView(generics.ListAPIView):
+    serializer_class =IssueReportserializer
+    permission_classes =[IsManager]
+
+    def get_queryset(self):
+        return IssueReport.objects.filter(
+            department =self.request.user.department,
+            is_reviewed_by_manager = False
+        )

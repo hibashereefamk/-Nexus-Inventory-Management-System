@@ -2,6 +2,7 @@ from django.db import models
 import uuid
 from app.accounts.models import User, Department
 from django.utils import timezone
+from app.inventory.models import Product,Category
 
 class OrderAssignment(models.Model):
     STATUS_CHOICES = [
