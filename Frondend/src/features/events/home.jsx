@@ -8,10 +8,6 @@ function Home() {
 
   return (
     <div className="dashboard-container">
-      <header>
-        <h1>{userRole.toUpperCase()} DASHBOARD</h1>
-        <p>Current Department: {userDept}</p>
-      </header>
       {userRole === 'admin' && (
         <section className="admin-section">
           <AdminStats />

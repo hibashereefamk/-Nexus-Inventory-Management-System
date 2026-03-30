@@ -1,218 +1,154 @@
-import React, { useState, useEffect } from 'react'
-import axios from 'axios'
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 
 function StaffPackingQueue() {
-  const [tasks, setTasks] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  const [stats, setStats] = useState({
-    pending: 0,
-    packing: 0,
-    packed: 0
-  })
-
-  useEffect(() => {
-    fetchDashboardData()
-  }, [])
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({ pending: 0, packing: 0, packed: 0 });
+  const department = localStorage.getItem('department_name') || '';
 
   const fetchDashboardData = async () => {
-  try {
-    const token = localStorage.getItem('access_token'); // Get token inside the function
-    const res = await axios.get('http://127.0.0.1:8000/api/orders/staff/tasks/', {
-      headers: {
-        'Authorization': `Bearer ${token}` // This is the crucial part
-      }
-    });
-    
-    const data = Array.isArray(res.data) ? res.data : res.data.tasks || [];
-    setTasks(data);
-    
-    setStats({
-      pending: data.filter(t => t.status === 'PENDING').length,
-      packing: data.filter(t => t.status === 'PACKING').length,
-      packed: data.filter(t => t.status === 'PACKED').length
-    });
+    try {
+      const token = localStorage.getItem('access_token');
+      const res = await axios.get('http://127.0.0.1:8000/api/orders/staff/tasks/', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = res.data.results || [];
+      setTasks(data);
+      setStats({
+        pending: data.filter(t => t.status === 'PENDING').length,
+        packing: data.filter(t => t.status === 'PACKING').length,
+        packed: data.filter(t => t.status === 'PACKED').length
+      });
+      setLoading(false);
+    } catch (err) {
+      console.error(err);
+      setLoading(false);
+    }
+  };
 
-    setLoading(false);
-  } catch (err) {
-    console.error("Fetch error:", err.response?.data || err.message);
-    setLoading(false);
-  }
-};
-const handleUpdateStatus = async (id, status) => {
-  try {
-    const token = localStorage.getItem('access_token');
-    await axios.patch(
-      `http://127.0.0.1:8000/api/orders/staff/update-task/${id}/`, 
-      { status: status }, // Body
-      {
-        headers: {
-          'Authorization': `Bearer ${token}` // Headers
-        }
-      }
-    );
-    fetchDashboardData(); // Refresh list after update
-  } catch (err) {
-    console.error("Update error:", err.response?.data || err.message);
-  }
-};
+  useEffect(() => { fetchDashboardData(); }, []);
 
-  if (loading) return <div className="p-8 text-center">Loading...</div>
+  if (loading) return <div className="p-10 text-center font-sans text-gray-400">Loading Dashboard...</div>;
 
   return (
-    <div className="p-6 bg-gray-100 min-h-screen">
-
-      {/* 🔷 HEADER */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
-        <p className="text-sm text-gray-500">Staff Operations</p>
+    <div className="min-h-screen bg-[#F8FAFC] font-sans text-[#334155]">
+      {/* 🔷 TOP NAVIGATION BAR AREA (Mock) */}
+      <div className="bg-white border-b border-gray-200 px-8 py-4 flex justify-between items-center shadow-sm">
+        <div className="flex items-center gap-4">
+           <h1 className="text-xl font-bold tracking-tight text-gray-800">DASHBOARD</h1>
+        </div>
+        <div className="text-sm font-medium text-gray-500">Staff - {department} Dept</div>
       </div>
 
-      {/* 🔷 STATS CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+      <div className="p-8 max-w-[1600px] mx-auto">
+        
+        {/* 🔷 TODAY'S TASKS (Banner Cards) */}
+        <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500 mb-4">Today's Tasks</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+          <BannerCard 
+            count={stats.pending + stats.packing} 
+            label="Shipments Due" 
+            subText="4 High Priority" 
+            icon="🚚"
+          />
+          <BannerCard 
+            count="26" 
+            label="Expiring Soon" 
+            subText="Within 7 Days" 
+            icon="📅"
+          />
+        </div>
 
-        <StatCard title="Pending Orders" count={stats.pending} icon="📦" color="bg-yellow-500" />
-        <StatCard title="Packing" count={stats.packing} icon="📦" color="bg-blue-500" />
-        <StatCard title="Packed" count={stats.packed} icon="🚚" color="bg-green-500" />
+        {/* 🔷 PACKING WORKFLOW (Kanban) */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-10">
+          <div className="p-4 border-b border-gray-100 bg-gray-50/50">
+            <h2 className="text-sm font-bold uppercase tracking-widest">Packing Workflow</h2>
+          </div>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-3 divide-x divide-gray-100">
+            <WorkflowColumn 
+                title="Pending" 
+                items={tasks.filter(t => t.status === 'PENDING')} 
+            />
+            <WorkflowColumn 
+                title="Packing" 
+                items={tasks.filter(t => t.status === 'PACKING')} 
+            />
+            <WorkflowColumn 
+                title="Packed" 
+                items={tasks.filter(t => t.status === 'PACKED')} 
+            />
+          </div>
+        </div>
 
+        {/* 🔷 RECENT ACTIVITY (Table) */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+           <div className="p-4 border-b border-gray-100">
+              <h2 className="text-sm font-bold uppercase tracking-widest">Recent Inventory Activity</h2>
+           </div>
+           <table className="w-full text-left text-sm">
+              <thead className="bg-gray-50 text-gray-400 font-semibold border-b border-gray-100">
+                <tr>
+                  <th className="px-6 py-3">Timestamp</th>
+                  <th className="px-6 py-3">Item Name</th>
+                  <th className="px-6 py-3">Action</th>
+                  <th className="px-6 py-3 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {tasks.slice(0, 3).map(task => (
+                  <tr key={task.id} className="hover:bg-gray-50/50">
+                    <td className="px-6 py-4 text-gray-500 font-mono">09:15 AM</td>
+                    <td className="px-6 py-4 font-bold">{task.order_number}</td>
+                    <td className="px-6 py-4">Status Updated</td>
+                    <td className="px-6 py-4 text-right">
+                       <span className="text-green-600 font-bold px-2 py-1 bg-green-50 rounded text-xs">OK</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+           </table>
+        </div>
       </div>
-
-      {/* 🔷 KANBAN */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-
-        <QueueColumn
-          title="Pending"
-          items={tasks.filter(t => t.status === 'PENDING')}
-          action={(id) => handleUpdateStatus(id, 'PACKING')}
-          btnText="Start"
-          color="border-yellow-400"
-        />
-
-        <QueueColumn
-          title="Packing"
-          items={tasks.filter(t => t.status === 'PACKING')}
-          action={(id) => handleUpdateStatus(id, 'PACKED')}
-          btnText="Pack"
-          color="border-blue-400"
-        />
-
-        <QueueColumn
-          title="Packed"
-          items={tasks.filter(t => t.status === 'PACKED')}
-          action={(id) => handleUpdateStatus(id, 'SHIPPED')}
-          btnText="Ship"
-          color="border-green-400"
-        />
-
-        <QueueColumn
-          title="Completed"
-          items={tasks.filter(t => t.status === 'SHIPPED')}
-          isReadOnly
-          color="border-gray-400"
-        />
-
-      </div>
-
-      {/* 🔷 LIVE TABLE */}
-      <div className="mt-8 bg-white rounded-xl shadow p-4">
-        <h3 className="font-bold mb-4">Recent Orders</h3>
-
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-gray-500 border-b">
-              <th className="py-2 text-left">Order</th>
-              <th>Status</th>
-              <th>Deadline</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tasks.slice(0, 5).map(task => (
-              <tr key={task.id} className="border-b hover:bg-gray-50">
-                <td className="py-2 font-medium">{task.order_number}</td>
-                <td>
-                  <StatusBadge status={task.status} />
-                </td>
-                <td>{task.deadline_date}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
     </div>
-  )
+  );
 }
 
-export default StaffPackingQueue
+/* --- Styled Sub-Components --- */
 
-
-const StatCard = ({ title, count, icon, color }) => (
-  <div className="bg-white p-5 rounded-xl shadow flex justify-between items-center">
-    <div>
-      <p className="text-gray-500 text-sm">{title}</p>
-      <h2 className="text-3xl font-bold">{count}</h2>
+const BannerCard = ({ count, label, subText, icon }) => (
+  <div className="bg-white border border-gray-200 p-6 rounded-xl flex items-center justify-between shadow-sm">
+    <div className="flex items-center gap-6">
+      <span className="text-6xl font-black text-gray-900 leading-none">{count}</span>
+      <div>
+        <p className="text-lg font-bold text-gray-800">{label}</p>
+        <p className="text-xs text-gray-400 font-medium">{subText}</p>
+      </div>
     </div>
-    <div className={`${color} text-white p-3 rounded-lg text-xl`}>
-      {icon}
-    </div>
+    <div className="text-5xl opacity-40 grayscale">{icon}</div>
   </div>
-)
+);
 
-const QueueColumn = ({ title, items, action, btnText, isReadOnly, color }) => (
-  <div className={`bg-white rounded-xl p-4 shadow border-t-4 ${color}`}>
-    <h3 className="font-bold mb-4 flex justify-between">
-      {title}
-      <span className="bg-gray-200 px-2 rounded text-xs">{items.length}</span>
-    </h3>
-
-    <div className="space-y-3">
+const WorkflowColumn = ({ title, items }) => (
+  <div className="p-6 bg-white min-h-[300px]">
+    <h3 className="text-xs font-bold text-gray-400 uppercase mb-4 tracking-widest">'{title}'</h3>
+    <div className="space-y-4">
       {items.map(task => (
-        <TaskCard
-          key={task.id}
-          task={task}
-          onAction={() => action(task.id)}
-          btnText={btnText}
-          isReadOnly={isReadOnly}
-        />
+        <div key={task.id} className="group border border-gray-200 rounded-xl p-4 hover:border-blue-400 hover:shadow-md transition-all cursor-pointer">
+          <div className="flex justify-between items-start mb-3">
+             <span className="font-bold text-gray-800">Order #{task.order_number.split('-')[1]}</span>
+             <span className="text-[10px] uppercase font-bold text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded">Priority</span>
+          </div>
+          <div className="text-[11px] text-gray-400 space-y-1">
+            <p>Status: <span className="text-gray-600 font-semibold">{task.status}</span></p>
+            <p>Customer Name: <span className="text-gray-600">John Doe</span></p>
+          </div>
+        </div>
       ))}
+      {items.length === 0 && <div className="border-2 border-dashed border-gray-100 rounded-xl h-24 flex items-center justify-center text-xs text-gray-300 uppercase font-bold italic">Empty</div>}
     </div>
   </div>
-)
+);
 
-const TaskCard = ({ task, onAction, btnText, isReadOnly }) => (
-  <div className="bg-gray-50 p-4 rounded-lg border hover:shadow-md transition">
-    <h4 className="font-bold">{task.order_number}</h4>
-
-    <p className="text-xs text-gray-500 mt-1">
-      Deadline: {task.deadline_date}
-    </p>
-
-    <div className="mt-2">
-      <StatusBadge status={task.status} />
-    </div>
-
-    {!isReadOnly && (
-      <button
-        onClick={onAction}
-        className="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white text-xs py-1 rounded"
-      >
-        {btnText}
-      </button>
-    )}
-  </div>
-)
-
-const StatusBadge = ({ status }) => {
-  const styles = {
-    PENDING: 'bg-yellow-100 text-yellow-700',
-    PACKING: 'bg-blue-100 text-blue-700',
-    PACKED: 'bg-green-100 text-green-700',
-    SHIPPED: 'bg-gray-200 text-gray-700'
-  }
-
-  return (
-    <span className={`text-xs px-2 py-1 rounded ${styles[status]}`}>
-      {status}
-    </span>
-  )
-}
+export default StaffPackingQueue;

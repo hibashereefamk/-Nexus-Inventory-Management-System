@@ -7,7 +7,6 @@ const TopNavbar = () => {
   const navigate = useNavigate();
 
   const username = localStorage.getItem('username') || 'User';
-  const department = localStorage.getItem('department_name') || '';
   const role = localStorage.getItem('role_display') || '';
 
   return (
@@ -42,12 +41,8 @@ const TopNavbar = () => {
           </span>
           <div style={{display:'flex',flexDirection:"column"}}>
 
-          <span>{username}</span>
+          <span>{username} - {role}</span>
 
-          
-          <span>
-            {role} - {department}
-          </span>
           {open && (
             <div className="dropdown">
               <p onClick={() => navigate('/profile')}>Profile</p>
