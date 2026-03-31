@@ -11,7 +11,6 @@ useEffect(() => {
     fetchAdminStats();
 }, []);
 
-// In your return, display these as big "Stat Cards"
 return (
     <div className="grid grid-cols-3 gap-6">
         <div className="p-6 bg-white shadow rounded-xl">

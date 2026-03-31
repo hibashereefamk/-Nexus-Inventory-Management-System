@@ -13,7 +13,7 @@ function StaffPackingQueue() {
       const res = await axios.get('http://127.0.0.1:8000/api/orders/staff/tasks/', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const data = res.data.results || [];
+      const data = Array.isArray(res.data) ? res.data : (res.data.results || []);
       setTasks(data);
       setStats({
         pending: data.filter(t => t.status === 'PENDING').length,
