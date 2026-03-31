@@ -32,7 +32,7 @@ class IssueReportserializer(serializers.ModelSerializer):
 
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
-        model =IssueReport
+        model =Notification
         fields ='__all__'
 
 

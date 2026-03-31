@@ -1,163 +1,203 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import {Zap,AlertTriangle}  from 'lucide-react';
+
+const API_BASE = 'http://127.0.0.1:8000';
 
 function StaffPackingQueue() {
   const [tasks, setTasks] = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ pending: 0, packing: 0, packed: 0 });
-  const department = localStorage.getItem('department_name') || '';
+  const [error, setError] = useState(null);
+  const department = localStorage.getItem('department_name') || 'Staff';
 
+  const navigate = useNavigate();
   const fetchDashboardData = async () => {
-    try {
-      const token = localStorage.getItem('access_token');
-      const res = await axios.get('http://127.0.0.1:8000/api/orders/staff/tasks/', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = Array.isArray(res.data) ? res.data : (res.data.results || []);
-      setTasks(data);
-      setStats({
-        pending: data.filter(t => t.status === 'PENDING').length,
-        packing: data.filter(t => t.status === 'PACKING').length,
-        packed: data.filter(t => t.status === 'PACKED').length
-      });
+    const token = localStorage.getItem('access_token');
+    
+    if (!token) {
+      setError("No login token found. Please log in.");
       setLoading(false);
+      return;
+    }
+
+    const config = {
+      headers: { Authorization: `Bearer ${token}` }
+    };
+
+    try {
+      setLoading(true);
+      // Fetch both APIs
+      const [taskRes, notifyRes] = await Promise.all([
+        axios.get(`${API_BASE}/api/orders/staff/tasks/`, config),
+        axios.get(`${API_BASE}/api/inventory/notifications/`, config)
+      ]);
+
+      // Your JSON has a .results key
+      setTasks(taskRes.data.results || []);
+      setNotifications(notifyRes.data.results || []);
+      setError(null);
     } catch (err) {
-      console.error(err);
+      console.error("Fetch Error:", err);
+      if (err.response?.status === 401) {
+        setError("Session expired. Please log in again.");
+      } else {
+        setError("Could not connect to the server.");
+      }
+    } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { fetchDashboardData(); }, []);
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
 
-  if (loading) return <div className="p-10 text-center font-sans text-gray-400">Loading Dashboard...</div>;
-const handleCompleteShipment = async (taskId, requirements) => {
-    // requirements = { is_expiry_checked: true, ... }
-    await axios.patch(`/api/shipments/${taskId}/complete/`, requirements);
-    alert("Stock deducted and shipment marked as completed!");
-};
+  const handleCompleteShipment = async (taskId) => {
+    const token = localStorage.getItem('access_token');
+    try {
+      await axios.patch(
+        `${API_BASE}/api/shipments/${taskId}/complete/`, 
+        { is_expiry_checked: true },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      alert("Shipment Completed!");
+      fetchDashboardData();
+    } catch (err) {
+      alert("Action failed. Check console.");
+    }
+  };
+
+  // Status mapping logic
+  const stats = {
+    pending: tasks.filter(t => t.status === 'PENDING').length,
+    packing: tasks.filter(t => t.status === 'PACKING').length,
+    shipped: tasks.filter(t => t.status === 'SHIPPED').length
+  };
+
+  if (loading) return <div className="p-10 text-center text-gray-400">Loading Dashboard...</div>;
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans text-[#334155]">
-      {/* 🔷 TOP NAVIGATION BAR AREA (Mock) */}
-      <div className="bg-white border-b border-gray-200 px-8 py-4 flex justify-between items-center shadow-sm">
-        <div className="flex items-center gap-4">
-           <h1 className="text-xl font-bold tracking-tight text-gray-800">DASHBOARD</h1>
-        </div>
-        <div className="text-sm font-medium text-gray-500">Staff - {department} Dept</div>
+      {/* Header */}
+      <div className="bg-white border-b px-8 py-4 flex justify-between items-center shadow-sm">
+        <h1 className="text-xl font-bold text-gray-800">STAFF DASHBOARD</h1>
+        <div className="text-sm text-gray-500">Dept: {department}</div>
       </div>
 
       <div className="p-8 max-w-[1600px] mx-auto">
-        
-        {/* 🔷 TODAY'S TASKS (Banner Cards) */}
-        <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500 mb-4">Today's Tasks</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
-          <BannerCard 
-            count={stats.pending + stats.packing} 
-            label="Shipments Due" 
-            subText="4 High Priority" 
-            icon="🚚"
-          />
-          <BannerCard 
-            count="26" 
-            label="Expiring Soon" 
-            subText="Within 7 Days" 
-            icon="📅"
-          />
-        </div>
-
-        {/* 🔷 PACKING WORKFLOW (Kanban) */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-10">
-          <div className="p-4 border-b border-gray-100 bg-gray-50/50">
-            <h2 className="text-sm font-bold uppercase tracking-widest">Packing Workflow</h2>
+        {/* 🔴 Error Alert */}
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+            <strong>Error:</strong> {error}
           </div>
-          
-          {/* 🔷 PACKING WORKFLOW (Kanban) */}
-<div className="grid grid-cols-1 lg:grid-cols-3 divide-x divide-gray-100">
-    <WorkflowColumn 
-        title="Pending" 
-        items={tasks.filter(t => t.status === 'PENDING')} 
-    />
-    <WorkflowColumn 
-        title="Packing" 
-        items={tasks.filter(t => t.status === 'PACKING')} 
-    />
-    <WorkflowColumn 
-        title="Packed" 
-        items={tasks.filter(t => t.status === 'PACKED')} 
-        onComplete={handleCompleteShipment} // 👈 USE IT HERE
-    />
-</div>
-        </div>
+        )}
 
-        {/* 🔷 RECENT ACTIVITY (Table) */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-           <div className="p-4 border-b border-gray-100">
-              <h2 className="text-sm font-bold uppercase tracking-widest">Recent Inventory Activity</h2>
-           </div>
-           <table className="w-full text-left text-sm">
-              <thead className="bg-gray-50 text-gray-400 font-semibold border-b border-gray-100">
-                <tr>
-                  <th className="px-6 py-3">Timestamp</th>
-                  <th className="px-6 py-3">Item Name</th>
-                  <th className="px-6 py-3">Action</th>
-                  <th className="px-6 py-3 text-right">Status</th>
+        {!error && (
+          <>
+            {/* Banner Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+              <BannerCard count={stats.pending} label="Pending Tasks" subText="Awaiting Action" icon={<Zap size={30} />} />
+              <BannerCard count={notifications.length} label="Inventory Alerts" subText="Check Activity Below" icon={<AlertTriangle size={30} />} onClick={() => navigate('/inventory/alerts')} // 👈 Navigate to Alert Page
+          />
+            </div>
+
+            {/* Kanban Board */}
+            <div className="bg-white rounded-xl border shadow-sm mb-10 overflow-hidden">
+              <div className="grid grid-cols-1 lg:grid-cols-3 divide-x divide-gray-100">
+                <WorkflowColumn title="Pending" items={tasks.filter(t => t.status === 'PENDING')} onItemClick={(id) => navigate(`/tasks/detail/${id}`)}/>
+                <WorkflowColumn title="Packing" items={tasks.filter(t => t.status === 'PACKING')} onItemClick={(id) => navigate(`/tasks/detail/${id}`)}
+            />
+                <WorkflowColumn 
+                  title="Completed/Shipped" 
+                  items={tasks.filter(t => t.status === 'SHIPPED')} 
+                  onComplete={handleCompleteShipment} 
+                onItemClick={(id) => navigate(`/tasks/detail/${id}`)}
+            />
+              </div>
+            </div>
+
+            {/* Recent Activity Table */}
+            <div className="bg-white rounded-xl border shadow-sm">
+              <div className="p-4 border-b">
+                <h2 className="text-sm font-bold uppercase">Recent Inventory Notifications</h2>
+              <button onClick={() => navigate('/inventory/alerts')} className="text-xs text-blue-600 font-bold hover:underline">VIEW ALL</button>
+          </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-gray-50 text-gray-400 font-semibold">
+                    <tr>
+                <th className="px-6 py-3">Time</th>
+                <th className="px-6 py-3">Title</th>
+                <th className="px-6 py-3">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {notifications.slice(0, 5).map(note => (
+                <tr 
+                  key={note.id} 
+                  className="hover:bg-blue-50/50 cursor-pointer transition-colors"
+                  onClick={() => navigate(`/inventory/reorder/${note.id}`)} // 👈 Go to Reorder Form
+                >
+                  <td className="px-6 py-4 text-xs font-mono">{new Date(note.created_at).toLocaleTimeString()}</td>
+                  <td className="px-6 py-4 font-bold text-slate-700">{note.title}</td>
+                  <td className="px-6 py-4 text-blue-600 font-bold text-[10px]">REORDER →</td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {tasks.slice(0, 3).map(task => (
-                  <tr key={task.id} className="hover:bg-gray-50/50">
-                    <td className="px-6 py-4 text-gray-500 font-mono">09:15 AM</td>
-                    <td className="px-6 py-4 font-bold">{task.order_number}</td>
-                    <td className="px-6 py-4">Status Updated</td>
-                    <td className="px-6 py-4 text-right">
-                       <span className="text-green-600 font-bold px-2 py-1 bg-green-50 rounded text-xs">OK</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-           </table>
-        </div>
+              ))}
+                    {notifications.length === 0 && (
+                      <tr><td colSpan="3" className="p-10 text-center text-gray-400">No recent notifications</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-/* --- Styled Sub-Components --- */
 
-const BannerCard = ({ count, label, subText, icon }) => (
-  <div className="bg-white border border-gray-200 p-6 rounded-xl flex items-center justify-between shadow-sm">
+const BannerCard = ({ count, label, subText, icon, onClick }) => (
+  <div 
+    onClick={onClick}
+    className={`bg-white border p-6 rounded-xl flex items-center justify-between shadow-sm transition-all ${onClick ? 'cursor-pointer hover:border-blue-400 hover:shadow-md' : ''}`}
+  >
     <div className="flex items-center gap-6">
       <span className="text-6xl font-black text-gray-900 leading-none">{count}</span>
       <div>
-        <p className="text-lg font-bold text-gray-800">{label}</p>
-        <p className="text-xs text-gray-400 font-medium">{subText}</p>
+        <p className="text-lg font-bold text-slate-800">{label}</p>
+        <p className="text-xs text-gray-400">{subText}</p>
       </div>
     </div>
-    <div className="text-5xl opacity-40 grayscale">{icon}</div>
+    <div className="text-5xl opacity-20">{icon}</div>
   </div>
 );
-// Update the sub-component definition
-const WorkflowColumn = ({ title, items, onComplete }) => (
-  <div className="p-6 bg-white min-h-[300px]">
-    <h3 className="text-xs font-bold text-gray-400 uppercase mb-4 tracking-widest">{title}</h3>
+
+const WorkflowColumn = ({ title, items, onItemClick }) => (
+  <div className="p-6 min-h-[300px] bg-white">
+    <h3 className="text-[10px] font-bold text-gray-400 uppercase mb-4 tracking-[0.2em]">{title}</h3>
     <div className="space-y-4">
       {items.map(task => (
-        <div key={task.id} className="group border border-gray-200 rounded-xl p-4 hover:border-blue-400 transition-all">
-          <div className="flex justify-between items-start mb-3">
-             <span className="font-bold text-gray-800">Order #{task.order_number}</span>
+        <div 
+          key={task.id} 
+          onClick={() => onItemClick(task.id)} // 👈 Trigger Navigation
+          className="group border border-slate-200 rounded-xl p-4 hover:border-blue-500 hover:bg-blue-50/30 cursor-pointer transition-all shadow-sm bg-white"
+        >
+          <div className="flex justify-between items-start mb-2">
+            <span className="font-bold text-slate-800">Order #{task.order_number}</span>
           </div>
-          
-          {/* 🔷 Trigger the API call only in the 'Packed' column */}
-          {title === "Packed" && (
-            <button 
-              onClick={() => onComplete(task.id, { is_expiry_checked: true })} 
-              className="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold py-2 rounded shadow-sm"
-            >
-              SHIP NOW
-            </button>
-          )}
+          <div className="flex items-center justify-between mt-4">
+            <span className="text-[10px] text-slate-400 font-mono">{task.deadline_date}</span>
+            <span className="text-[10px] font-bold text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">MANAGE →</span>
+          </div>
         </div>
       ))}
+      {items.length === 0 && <p className="text-center text-xs text-slate-300 italic py-10">Empty stage</p>}
     </div>
   </div>
 );
+
 export default StaffPackingQueue;

@@ -1,6 +1,19 @@
 import React from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import './Sidebar.css';
+import { 
+  LayoutDashboard, 
+  Users, 
+  Settings, 
+  ClipboardList, 
+  BarChart3, 
+  Briefcase, 
+  AlertTriangle,  
+  Search, 
+  History, 
+  MailPlus,
+  TrendingUp
+} from 'lucide-react';
 
 const Sidebar = () => {
   const userRoleDisplay = localStorage.getItem('role_display') || 'staff';
@@ -9,32 +22,28 @@ const Sidebar = () => {
   const profilePic = localStorage.getItem('profile_pic') || null;
   const navigate =useNavigate()
  const menuConfig = {
-    admin: [
-      { title: "User Management", icon: "👥" },
-      { title: "System Settings", icon: "⚙️" },
-      { title: "Audit Logs", icon: "📋" },
-      { title: "Global Reports", icon: "📊" },
-      { title: "Backup & Recovery", icon: "💾" }
-    ],
-    manager: [
-      { title: "Business Overview", icon: "📈" },
-      { title: "Approval Requests", icon: "✅" },
-      { title: "Department Stats", icon: "🏢" },
-      { title: "Strategic Reports", icon: "📝" }
-    ],
-    staff: [
-      { title: "My Profile", icon: "👤" },
-      { title: "Daily Tasks", icon: "📅" },
-      { title: "Item Lookup", icon: "🔍" },
-      { title: "Internal Requests", icon: "📩" }
-    ],
-  };
-const menuItems = menuConfig[userRole] || [{ title: "Dashboard", icon: "🏠" }];
+  admin: [
+    { title: "Dashboard", icon: <LayoutDashboard size={20} />, path: "/" },
+    { title: "User Management", icon: <Users size={20} />, path: "/user-management" },
+    { title: "System Settings", icon: <Settings size={20} />, path: "/settings" },
+    { title: "Audit Logs", icon: <ClipboardList size={20} />, path: "/logs" },
+  ],
+  manager: [
+    { title: "Operations Overview", icon: <TrendingUp size={20} />, path: "/" },
+    { title: "Department Tasks", icon: <Briefcase size={20} />, path: "/tasks/queue" },
+    { title: "Inventory Alerts", icon: <AlertTriangle size={20} />, path: "/inventory/alerts" },
+    { title: "Performance Reports", icon: <BarChart3 size={20} />, path: "/reports" },
+  ],
+  staff: [
+    { title: "Dashboard", icon: <LayoutDashboard size={20} />, path: "/" },
+    { title: "Inventory Alerts", icon: <AlertTriangle size={20} />, path: "/inventory/alerts" },
+    { title: "Stock Lookup", icon: <Search size={20} />, path: "/inventory/lookup" },
+    { title: "Procurement History", icon: <History size={20} />, path: "/inventory/history" },
+    { title: "Supply Request", icon: <MailPlus size={20} />, path: "/requests" },
+  ],
+};
+const menuItems = menuConfig[userRole] || [{ title: "Dashboard", icon: "🏠", path: "/" }];
 
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate('/login');
-  };
 
   return (
     <div className="sidebar">
@@ -49,42 +58,22 @@ const menuItems = menuConfig[userRole] || [{ title: "Dashboard", icon: "🏠" }]
       </div>
       <hr style={{ border: '1px solid #9c9b9b', margin: '10px 0' }} />
       
-      {/* NEW: User Profile Section
-      <div className="sidebar-profile">
-        <div className="profile-avatar-container">
-          {profilePic ? (
-            <img src={profilePic} alt="Profile" className="profile-img" />
-          ) : (
-            <div className="profile-initials">{username.charAt(0).toUpperCase()}</div>
-          )}
-          <div className="status-indicator online"></div>
-        </div>
-        <div className="profile-details">
-          <p className="profile-username">{username}</p>
-          <span className={`role-badge ${userRoleDisplay}`}>{userRoleDisplay.replace('_', ' ')}</span>
-        </div>
-      </div> */}
 
-      {/* Navigation */}
       <nav className="sidebar-nav">
-        <ul>
-          {menuItems.map((item, index) => (
-            <li key={index}>
-              <Link to={`/${item.title.toLowerCase().replace(/\s+/g, '-')}`}>
-                <span className="nav-icon">{item.icon}</span>
-                <span className="nav-text">{item.title}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <p className="sidebar-label">Main Menu</p> {/* Professional Label */}
+      <ul>
+        {menuItems.map((item, index) => (
+  <li key={index}>
+    <Link to={item.path} className={window.location.pathname === item.path ? 'active' : ''}>
+      {/* 🔷 Render the icon component directly */}
+      <span className="nav-icon">{item.icon}</span>
+      <span className="nav-text">{item.title}</span>
+    </Link>
+  </li>
+))}
+      </ul>
+    </nav>
 
-      {/* <div className="sidebar-footer">
-        <button onClick={handleLogout} className="logout-btn">
-          <span className="logout-icon">⏻</span>
-          <span>Sign Out</span>
-        </button>
-      </div> */}
     </div>
   );
 };

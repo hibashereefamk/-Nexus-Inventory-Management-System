@@ -8,7 +8,14 @@ import Verifyotp from "./features/auth/verifyotp.jsx";
 import Layout from "./features/events/Layout.jsx";
 import UserManagement from "./features/events/usermanagement.jsx";
 import PrivateRoute from "./features/auth/ProtectRoute.jsx";
-
+import StaffPackingQueue from "./features/events/StaffPackingQueue"; 
+import InventoryAlertPage from "./features/events/InventoryAlertPage";
+import InventoryReorderForm from "./features/events/InventoryReorderForm.jsx";
+import TaskDetailPage from "./features/events/TaskDetailPage.jsx";
+import ProcurementHistory from "./features/events/ProcurementHistory.jsx";
+import StockLookup from "./features/events/StockLookup.jsx";
+import SupplyRequest from "./features/events/SupplyRequest.jsx";
+import TaskInspectionPage from "./features/events/TaskInspectionPage.jsx";
 function App() {
   return (
      <BrowserRouter>
@@ -21,9 +28,17 @@ function App() {
          <Route path="/request-reset" element={<RequestResetPassword />} />
         
         <Route element={<Layout/>}>
-            <Route path="/" element={<Home/>}/>
-            <Route path="/user-management" element={<UserManagement/>}/>
-        </Route>
+    <Route path="/" element={<Home/>}/>
+    <Route path="/tasks/queue" element={<StaffPackingQueue />} /> 
+    <Route path="/tasks/detail/:id" element={<TaskDetailPage />} />
+    <Route path="/inventory/lookup" element={<StockLookup />} />
+    <Route path="/inventory/history" element={<ProcurementHistory />} />
+    <Route path="/requests" element={<SupplyRequest />} />
+    <Route path="/inventory/alerts" element={<InventoryAlertPage />} />
+    <Route path="/inventory/reorder/:id" element={<InventoryReorderForm/>} />
+    <Route path="/user-management" element={<UserManagement />} />
+    <Route path="/tasks/inspect/:id" element={<TaskInspectionPage />} />
+</Route>
     </Route>
       </Routes>
     </BrowserRouter>

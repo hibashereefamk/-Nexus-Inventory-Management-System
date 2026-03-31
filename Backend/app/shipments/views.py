@@ -33,3 +33,18 @@ class CompleteShipmentView(generics.UpdateAPIView):
         product.save()
 
         return Response({"message": "Shipment completed and stock updated."})
+    
+class ShipmentListCreateView(generics.ListCreateAPIView):
+    queryset = ShipmentTask.objects.all()
+    serializer_class = ShipmentTaskSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(department=self.request.user.department)    
+
+
+class ShipmentDetailView(generics.RetrieveAPIView):
+    queryset = ShipmentTask.objects.all()
+    serializer_class = ShipmentTaskSerializer 
+    def get_queryset(self):
+        return ShipmentTask.objects.filter(department=self.request.user.department)       
+

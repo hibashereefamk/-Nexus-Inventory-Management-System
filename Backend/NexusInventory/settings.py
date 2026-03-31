@@ -87,6 +87,7 @@ REST_FRAMEWORK = {
 }
 
 # settings.py
+
 CELERY_BROKER_URL = 'redis://127.0.0.1:6379/0' # Add this line!
 CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
 CELERY_TASK_TRACK_STARTED = True
@@ -116,7 +117,8 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOW_ALL_ORIGINS =True
 
-
+# settings.py
+AUTH_USER_MODEL = 'accounts.User'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
