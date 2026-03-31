@@ -16,6 +16,7 @@ import ProcurementHistory from "./features/events/ProcurementHistory.jsx";
 import StockLookup from "./features/events/StockLookup.jsx";
 import SupplyRequest from "./features/events/SupplyRequest.jsx";
 import TaskInspectionPage from "./features/events/TaskInspectionPage.jsx";
+import DepartmentTaskMaster from "./features/events/DepartmentTaskMaster.jsx";
 function App() {
   return (
      <BrowserRouter>
@@ -37,6 +38,7 @@ function App() {
     <Route path="/inventory/alerts" element={<InventoryAlertPage />} />
     <Route path="/inventory/reorder/:id" element={<InventoryReorderForm/>} />
     <Route path="/user-management" element={<UserManagement />} />
+    <Route path="/tasks/registry" element={<DepartmentTaskMaster/>} />
     <Route path="/tasks/inspect/:id" element={<TaskInspectionPage />} />
 </Route>
     </Route>

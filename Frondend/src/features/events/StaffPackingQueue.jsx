@@ -201,3 +201,4 @@ const WorkflowColumn = ({ title, items, onItemClick }) => (
 );
 
 export default StaffPackingQueue;
+
