@@ -1,69 +1,96 @@
 from celery import shared_task
 from django.utils import timezone
-from .models import Product, Notification
 from django.contrib.auth import get_user_model
-from django.db.models import F 
+from django.db.models import F
+
+from .models import Product, Notification
 from app.tasks.models import OrderAssignment
 
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+
 User = get_user_model()
 
 
-def broadcast_notification(group_name, message_data):
-    """Helper to send real-time alerts to a specific group"""
+# ✅ Helper: Send realtime notification (WebSocket)
+def broadcast_notification(group_name, message):
     channel_layer = get_channel_layer()
     async_to_sync(channel_layer.group_send)(
         group_name,
         {
-            "type": "send_alert",  # This must match a method in your Consumers
-            "message": message_data
+            "type": "send_alert",
+            "message": message
         }
     )
-    
+
+
+# ✅ Task 1: Expiry + Low Stock Monitoring
 @shared_task
 def monitor_expiry_and_stock():
-    # 1. Check for expiring items (Class method from Product model)
+    # 🔸 Expiring soon
     urgent_items = Product.get_expiring_soon()
+
     for item in urgent_items:
+        msg = f"{item.name} expires soon!"
+
         Notification.objects.get_or_create(
             title="URGENT: Expiry Warning",
-            message=f"{item.name} in {item.department.name} expires soon!",
+            message=msg,
             department=item.department,
-            notification_type='EXPIRY' # Matches your model's TYPES
+            notification_type='EXPIRY'
         )
 
+        # 🔥 Real-time alert
+        broadcast_notification("inventory_alerts", msg)
 
-    # 2. Check for Low Stock (Using min_stock_level from your model)
-    low_stock_items = Product.objects.filter(total_stock__lte=F('min_stock_level'))
+    # 🔸 Low stock
+    low_stock_items = Product.objects.filter(
+        total_stock__lte=F('min_stock_level')
+    )
+
     for item in low_stock_items:
+        msg = f"{item.name} is running low ({item.total_stock} left)."
+
         Notification.objects.get_or_create(
             title="Low Stock Alert",
-            message=f"{item.name} is running low ({item.total_stock} left).",
+            message=msg,
             department=item.department,
             notification_type='LOW_STOCK'
         )
 
+        broadcast_notification("inventory_alerts", msg)
 
 
+# ✅ Task 2: Expired + Overdue Shipments
 @shared_task
 def check_expiry_and_overdue():
-    """
-    Logic for: 26-alert, 27-monitor, 28-shipment.
-    Checks for items that are overdue or expiring today.
-    """
     today = timezone.now().date()
-    
-    # 1. Check for Expired Food/Items
-    expired_items = Product.objects.filter(expiry_date__lte=today)
-    for item in expired_items:
-        notify_managers(item, f"EXPIRED: {item.name} reached expiry date {item.expiry_date}.")
-    overdue_items = Product.objects.filter(due_date__lt=timezone.now()).exclude(status='SHIPPED')
-    for item in overdue_items:
-        notify_managers(item, f"OVERDUE SHIPMENT: Order {item.id} is past the shipping deadline!")
 
+    # 🔸 Expired items
+    expired_items = Product.objects.filter(expiry_date__lte=today)
+
+    for item in expired_items:
+        notify_managers(
+            item,
+            f"EXPIRED: {item.name} expired on {item.expiry_date}"
+        )
+
+    # 🔸 Overdue shipments
+    overdue_items = Product.objects.filter(
+        due_date__lt=timezone.now()
+    ).exclude(status='SHIPPED')
+
+    for item in overdue_items:
+        notify_managers(
+            item,
+            f"OVERDUE: Order {item.id} missed deadline!"
+        )
+
+
+# ✅ Helper: Notify Managers
 def notify_managers(product, message):
     managers = User.objects.filter(role='MANAGER')
+
     for manager in managers:
         Notification.objects.create(
             recipient=manager,
@@ -73,42 +100,53 @@ def notify_managers(product, message):
         )
 
 
+# ✅ Task 3: System Health Monitoring
 @shared_task
 def monitor_system_health():
     today = timezone.now()
-    
-    # 1. Monitor Overdue Order Assignments
+
+    # 🔸 Overdue Orders
     overdue_orders = OrderAssignment.objects.filter(
         deadline_date__lt=today.date(),
         status__in=['PENDING', 'PACKING']
     )
+
     for order in overdue_orders:
-        order.status = 'OVERDUE' # Ensure 'OVERDUE' is in your STATUS_CHOICES
+        order.status = 'OVERDUE'
         order.save()
-        
+
         Notification.objects.create(
             title="TASK OVERDUE",
-            message=f"Order {order.order_number} has missed its deadline.",
+            message=f"Order {order.order_number} missed deadline.",
             department=order.department
         )
 
-    # 2. Monitor Expiry for Food (31-day warning)
+    # 🔸 Expiry Warning (31 days)
     urgent_items = Product.get_expiring_soon()
+
     for item in urgent_items:
         Notification.objects.get_or_create(
-            title="URGENT: Expiry Warning",
+            title="Expiry Warning",
             message=f"{item.name} expires in less than 31 days!",
             department=item.department
         )
 
 
+# ✅ Task 4: Low Stock Only (Optional separate task)
+@shared_task
+def check_low_stock_alerts():
+    low_stock_items = Product.objects.filter(
+        total_stock__lte=F('min_stock_level')
+    )
 
-#
-channel_layer = get_channel_layer()
-async_to_sync(channel_layer.group_send)(
-    "inventory_alerts",
-    {
-        "type": "send_alert",
-        "message": f"{item.name} expires soon!"
-    }
-)
+    for item in low_stock_items:
+        msg = f"{item.name} is running low ({item.total_stock} left)."
+
+        Notification.objects.get_or_create(
+            title="Low Stock Alert",
+            message=msg,
+            department=item.department,
+            notification_type='LOW_STOCK'
+        )
+
+        broadcast_notification("inventory_alerts", msg)

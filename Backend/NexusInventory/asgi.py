@@ -7,21 +7,17 @@ For more information on this file, see
 https://docs.djangoproject.com/en/6.0/howto/deployment/asgi/
 """
 import os
-from django.core.asgi import get_asgi_application
+import django
 from channels.routing import ProtocolTypeRouter, URLRouter
-from channels.auth import AuthMiddlewareStack
-import app.inventory.routing  # Import the routing we just made
+from django.core.asgi import get_asgi_application
+from app.inventory.routing import websocket_urlpatterns  # adjust if needed
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'NexusInventory.settings')
+django.setup()
 
 application = ProtocolTypeRouter({
-    # Handles standard HTTP requests
     "http": get_asgi_application(),
-    
-    # Handles WebSocket connections
-    "websocket": AuthMiddlewareStack(
-        URLRouter(
-            app.inventory.routing.websocket_urlpatterns
-        )
+    "websocket": URLRouter(
+        websocket_urlpatterns
     ),
 })

@@ -15,24 +15,7 @@ from datetime import timedelta
 
 from celery.schedules import crontab
 
-CELERY_BEAT_SCHEDULE = {
-    'check-stock-every-hour': {
-        'task': 'app.inventory.tasks.monitor_expiry_and_stock',
-        'schedule': 3600.0,
-    },
-    'daily-expiry-check': {
-        'task': 'app.inventory.tasks.check_expiry_and_overdue',
-        'schedule': crontab(hour=0, minute=0),
-    },
-    'monitor-overdue-and-expiry-every-hour': {
-        'task': 'app.inventory.tasks.monitor_system_health',
-        'schedule': 3600.0, # Every hour
-    },
-    'check-system-health-every-30-mins': {
-        'task': 'app.inventory.tasks.monitor_system_health',
-        'schedule': 1800.0,  # 1800 seconds = 30 minutes
-    },
-}
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -87,7 +70,24 @@ REST_FRAMEWORK = {
 
 }
 
-# settings.py
+CELERY_BEAT_SCHEDULE = {
+    'check-stock-every-hour': {
+        'task': 'app.inventory.tasks.monitor_expiry_and_stock',
+        'schedule': 3600.0,
+    },
+    'daily-expiry-check': {
+        'task': 'app.inventory.tasks.check_expiry_and_overdue',
+        'schedule': crontab(hour=0, minute=0),
+    },
+    'monitor-overdue-and-expiry-every-hour': {
+        'task': 'app.inventory.tasks.monitor_system_health',
+        'schedule': 3600.0, # Every hour
+    },
+    'check-system-health-every-30-mins': {
+        'task': 'app.inventory.tasks.monitor_system_health',
+        'schedule': 1800.0,  # 1800 seconds = 30 minutes
+    },
+}
 
 CELERY_BROKER_URL = 'redis://127.0.0.1:6379/0' # Add this line!
 CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
@@ -140,16 +140,14 @@ WSGI_APPLICATION = 'NexusInventory.wsgi.application'
 
 ASGI_APPLICATION = 'NexusInventory.asgi.application'
 
-# 3. Configure the Redis Channel Layer
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [('127.0.0.1', 6379)], # Your existing Redis address
+            "hosts": [('127.0.0.1', 6379)],
         },
     },
 }
-
 EMAIL_BACKEND='django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST='smtp.gmail.com'
 EMAIL_PORT=587
