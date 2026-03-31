@@ -67,6 +67,7 @@ INSTALLED_APPS = [
     'app.shipments.apps.ShipmentsConfig',
     'app.inventory.apps.InventoryConfig',
     'app.tasks.apps.TasksConfig',
+    'channels',
 ]
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -135,6 +136,19 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'NexusInventory.wsgi.application'
+
+
+ASGI_APPLICATION = 'NexusInventory.asgi.application'
+
+# 3. Configure the Redis Channel Layer
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)], # Your existing Redis address
+        },
+    },
+}
 
 EMAIL_BACKEND='django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST='smtp.gmail.com'

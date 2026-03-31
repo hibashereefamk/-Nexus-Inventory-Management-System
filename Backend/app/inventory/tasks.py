@@ -5,9 +5,22 @@ from django.contrib.auth import get_user_model
 from django.db.models import F 
 from app.tasks.models import OrderAssignment
 
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 User = get_user_model()
 
 
+def broadcast_notification(group_name, message_data):
+    """Helper to send real-time alerts to a specific group"""
+    channel_layer = get_channel_layer()
+    async_to_sync(channel_layer.group_send)(
+        group_name,
+        {
+            "type": "send_alert",  # This must match a method in your Consumers
+            "message": message_data
+        }
+    )
+    
 @shared_task
 def monitor_expiry_and_stock():
     # 1. Check for expiring items (Class method from Product model)
@@ -20,6 +33,7 @@ def monitor_expiry_and_stock():
             notification_type='EXPIRY' # Matches your model's TYPES
         )
 
+
     # 2. Check for Low Stock (Using min_stock_level from your model)
     low_stock_items = Product.objects.filter(total_stock__lte=F('min_stock_level'))
     for item in low_stock_items:
@@ -29,6 +43,8 @@ def monitor_expiry_and_stock():
             department=item.department,
             notification_type='LOW_STOCK'
         )
+
+
 
 @shared_task
 def check_expiry_and_overdue():
@@ -84,3 +100,15 @@ def monitor_system_health():
             message=f"{item.name} expires in less than 31 days!",
             department=item.department
         )
+
+
+
+#
+channel_layer = get_channel_layer()
+async_to_sync(channel_layer.group_send)(
+    "inventory_alerts",
+    {
+        "type": "send_alert",
+        "message": f"{item.name} expires soon!"
+    }
+)
