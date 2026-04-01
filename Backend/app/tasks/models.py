@@ -32,3 +32,4 @@ class OrderItem(models.Model):
     assignment = models.ForeignKey(OrderAssignment, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey('inventory.Product', on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField()
+    is_inspected = models.BooleanField(default=False)
