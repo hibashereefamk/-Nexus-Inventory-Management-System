@@ -51,8 +51,15 @@ def monitor_inventory_health():
         # Push to React Dashboard
         broadcast_notification("inventory_alerts", {"type": "EXPIRY", "msg": msg})
 
-        # Email Report to Managers
-        send_manager_email(f"Expiry Alert: {item.name}", msg, item.department)
+        manager_emails = list(User.objects.filter(role='MANAGER', department=item.department).values_list('email', flat=True))
+        if manager_emails:
+            send_mail(
+                subject="Nexus Inventory: Urgent Expiry Report",
+                message=msg,
+                from_email=settings.EMAIL_HOST_USER,
+                recipient_list=manager_emails,
+                fail_silently=False,
+            )
 
     # 2. Check for Low Stock
     low_stock_items = Product.objects.filter(total_stock__lte=F('min_stock_level'))
@@ -128,3 +135,17 @@ def send_admin_report(manager_id, report_text):
             recipient_list=list(admin_emails),
             fail_silently=False,
         )
+
+@shared_task
+def send_manager_report_to_admin(manager_id, report_data):
+    admin_emails = list(User.objects.filter(role='ADMIN').values_list('email', flat=True))
+    manager = User.objects.get(id=manager_id)
+    
+    body = f"Report from Manager {manager.username}:\n\n{report_data}"
+    
+    send_mail(
+        subject=f"Inventory Report: {manager.department.name}",
+        message=body,
+        from_email=settings.EMAIL_HOST_USER,
+        recipient_list=admin_emails
+    )

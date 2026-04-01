@@ -1,21 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState,useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './TopNavbar.css';
 
-const TopNavbar = () => {
+function TopNavbar ({ notifications, badgeCount, resetBadge }) {
   const [open, setOpen] = useState(false);
-  const [notifications, setNotifications] = useState([]);
-  const [badgeCount, setBadgeCount] = useState(0);
-
   const navigate = useNavigate();
 
   const username = localStorage.getItem('username') || 'User';
   const role = localStorage.getItem('role_display') || '';
 
-  // ✅ FIX 1: Define outside useEffect
   const handleNotificationClick = () => {
+    // Use notifications from props
     navigate('/inventory/alerts', { state: { alerts: notifications } });
-    setBadgeCount(0);
+    resetBadge();
   };
 
   useEffect(() => {
@@ -54,16 +51,10 @@ const TopNavbar = () => {
       <div className="top-left"></div>
 
       <div className="top-right">
-
-        {/* 🔔 Notifications */}
-        <div 
-          className="nav-item" 
-          onClick={handleNotificationClick}  // ✅ FIX 4
-          style={{ cursor: 'pointer' }}
-        >
+        <div className="nav-item" onClick={handleNotificationClick} style={{ cursor: 'pointer' }}>
           <span className="icon">🔔</span>
           <span>Notifications</span>
-          <span className="badge">{badgeCount}</span>
+          {badgeCount > 0 && <span className="badge">{badgeCount}</span>}
         </div>
 
         {/* Help */}

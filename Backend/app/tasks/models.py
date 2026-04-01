@@ -39,18 +39,14 @@ class OrderAssignment(models.Model):
     # 3. Add the notification logic as a method
     def notify_task_update(self, is_new):
         channel_layer = get_channel_layer()
-        notification_type = "task_assigned" if is_new or self.status == 'PENDING' else "status_updated"
-        
         async_to_sync(channel_layer.group_send)(
-            "inventory_alerts",  # Matches the group in your Consumer
-            {
-                "type": "task_update",  # Matches the handler in your Consumer
-                "notification_type": notification_type,
-                "message": f"Task {self.order_number} is now {self.get_status_display()}",
-                "task_id": self.id,
-                "status": self.status
-            }
-        )
+        "inventory_alerts",
+        {
+            "type": "task_update",  # This triggers the 'task_update' method in Consumer
+            "notification_type": "task_assigned" if is_new else "status_updated",
+            "message": f"Task {self.order_number} is now {self.get_status_display()}",
+        }
+    )
 
     def __str__(self):
         return f"{self.order_number} - {self.staff.username if self.staff else 'Unassigned'}"

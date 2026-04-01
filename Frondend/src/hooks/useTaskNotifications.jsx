@@ -8,17 +8,17 @@ const useTaskNotifications = () => {
     const socket = new WebSocket('ws://127.0.0.1:8000/ws/notifications/');
 
     socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      
-      // Handle different types of real-time updates
-      if (data.type === 'task_assigned' || data.type === 'status_updated') {
-        setNotifications((prev) => [data.payload, ...prev]);
-        setBadgeCount((prev) => prev + 1);
-        
-        // Optional: browser alert
-        console.log("Real-time Update:", data.payload);
-      }
-    };
+  const data = JSON.parse(event.data);
+  console.log("WebSocket Data Received:", data);
+  
+  if (data.type === 'task_assigned' || data.type === 'status_updated') {
+    // FIX: Change data.payload to data.message
+    setNotifications((prev) => [data.message, ...prev]); 
+    setBadgeCount((prev) => prev + 1);
+    
+    console.log("Real-time Update:", data.message);
+  }
+};
 
     return () => socket.close();
   }, []);
