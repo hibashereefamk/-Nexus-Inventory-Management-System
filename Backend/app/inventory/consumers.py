@@ -43,3 +43,18 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         data = json.loads(text_data)
         # You can add logic here if staff needs to 'acknowledge' an alert via WebSocket
         print(f"Message received from frontend: {data}")
+
+
+        # Add this method to your NotificationConsumer class
+    async def task_update(self, event):
+        """
+        Receives task assignments or status updates from the channel layer 
+        and sends them to the React frontend.
+        """
+    # Send the data to the WebSocket
+        await self.send(text_data=json.dumps({
+            "type": event.get("notification_type", "task_assigned"),
+            "payload": event["message"],
+            "task_id": event.get("task_id"),
+            "status": event.get("status")
+        }))
