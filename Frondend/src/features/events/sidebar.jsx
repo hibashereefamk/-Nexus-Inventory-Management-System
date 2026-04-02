@@ -23,17 +23,40 @@ const Sidebar = () => {
   const navigate =useNavigate()
  const menuConfig = {
   admin: [
-    { title: "Dashboard", icon: <LayoutDashboard size={20} />, path: "/" },
-    { title: "User Management", icon: <Users size={20} />, path: "/user-management" },
-    { title: "System Settings", icon: <Settings size={20} />, path: "/settings" },
-    { title: "Audit Logs", icon: <ClipboardList size={20} />, path: "/logs" },
-  ],
+  { title: "Dashboard", icon: <LayoutDashboard size={20} />, path: "/admin/dashboard" },
+
+  { title: "Users & Roles", icon: <Users size={20} />, path: "/admin/users" },
+
+  { title: "Operations", icon: <Briefcase size={20} />, path: "/admin/operations" }, 
+  // (Orders + Shipments + Staff Monitoring combined)
+
+  { title: "Reports & Approvals", icon: <ClipboardList size={20} />, path: "/admin/reports" },
+  // (Damage + Overdue + Emergency + Approval)
+
+  { title: "Analytics", icon: <BarChart3 size={20} />, path: "/admin/analytics" },
+
+  { title: "Alerts & Monitoring", icon: <AlertTriangle size={20} />, path: "/admin/alerts" },
+  // (Celery + Redis + Overdue + System Alerts)
+
+  { title: "Settings & Logs", icon: <Settings size={20} />, path: "/admin/settings" }
+],
   manager: [
-    { title: "Operations Overview", icon: <TrendingUp size={20} />, path: "/" },
-    { title: "Department Tasks", icon: <Briefcase size={20} />, path: "/tasks/queue" },
-    { title: "Inventory Alerts", icon: <AlertTriangle size={20} />, path: "/inventory/alerts" },
-    { title: "Performance Reports", icon: <BarChart3 size={20} />, path: "/reports" },
-  ],
+  { title: "Dashboard", icon: <LayoutDashboard size={20} />, path: "/manager/dashboard" },
+
+  { title: "Staff & Tasks", icon: <Users size={20} />, path: "/manager/staff-tasks" },
+  // (Staff + Assign + Department tasks)
+
+  { title: "Shipments & Packing", icon: <Briefcase size={20} />, path: "/manager/operations" },
+
+  { title: "Alerts & Overdue", icon: <AlertTriangle size={20} />, path: "/manager/alerts" },
+
+  { title: "Reports", icon: <ClipboardList size={20} />, path: "/manager/reports" },
+  // (Damage + Emergency + Review)
+
+  { title: "Performance", icon: <BarChart3 size={20} />, path: "/manager/performance" },
+
+  { title: "Chat & Notifications", icon: <MailPlus size={20} />, path: "/manager/chat" }
+],
   staff: [
     { title: "Dashboard", icon: <LayoutDashboard size={20} />, path: "/" },
     { title: "Task Registry", icon: <ClipboardList size={20} />, path: "/tasks/registry" },

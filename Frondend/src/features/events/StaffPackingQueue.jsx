@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Zap, AlertTriangle } from 'lucide-react';
+import { ClipboardList,Clock,PackageOpen,CheckCircle} from 'lucide-react';
 
 const API_BASE = 'http://127.0.0.1:8000';
 
@@ -89,25 +89,26 @@ function StaffPackingQueue() {
                 count={dashboardStats.total_assigned} 
                 label="Total Assigned" 
                 subText="All Time" 
-                icon={<Zap size={30} />} 
+                icon={<ClipboardList size={30} />} 
+                
               />
               <BannerCard 
                 count={dashboardStats.pending} 
                 label="Pending" 
                 subText="Awaiting Action" 
-                icon={<AlertTriangle size={30} />} 
+                icon={<Clock size={30} />} 
               />
               <BannerCard 
                 count={dashboardStats.packing} 
                 label="In Progress" 
                 subText="Currently Packing" 
-                icon={<Zap size={30} />} 
+                icon={<PackageOpen size={30} />} 
               />
               <BannerCard 
                 count={dashboardStats.shipped} 
                 label="Completed" 
                 subText="Shipped" 
-                icon={<Zap size={30} />} 
+                icon={<CheckCircle size={30} />} 
               />
             </div>
 

@@ -14,13 +14,13 @@ function Home() {
         </section>
       )}
 
-      {(userRole === 'manager' || userRole === 'admin') && (
+      {userRole === 'manager'  && (
         <section className="manager-section">
           <ManagerWorkflow /> 
         </section>
       )}
 
-      {(userRole === 'staff' || userRole === 'manager') && (
+      {userRole === 'staff'  && (
         <section className="staff-section">
           <StaffPackingQueue/> 
         </section>

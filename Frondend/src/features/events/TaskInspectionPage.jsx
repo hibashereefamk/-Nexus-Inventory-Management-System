@@ -1,206 +1,212 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { 
-  ClipboardCheck, 
-  AlertOctagon, 
-  Calendar, 
-  Package, 
-  ChevronLeft, 
-  Save,
-  CheckCircle2
+  Search, Filter, ArrowUpDown, ClipboardList, 
+  Clock, CheckCircle2, AlertCircle, ChevronRight,
+  LayoutDashboard, Loader2, RefreshCcw, Wifi, WifiOff
 } from 'lucide-react';
 
 const API_BASE = 'http://127.0.0.1:8000';
+const WS_BASE = 'ws://127.0.0.1:8000/ws/inventory/'; // Adjust path to match your routing.py
 
-function TaskInspectionPage() {
-  const { id } = useParams();
+const TaskInspectionPage = () => {
   const navigate = useNavigate();
-  const [task, setTask] = useState(null);
+  const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
-  
-  // Local state for inspection data
-  const [inspectionResults, setInspectionResults] = useState({});
+  const [error, setError] = useState(null);
+  const [wsConnected, setWsConnected] = useState(false);
 
-  const fetchTaskDetails = async () => {
-    const token = localStorage.getItem('access_token');
+  // Filter States
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [sortOrder, setSortOrder] = useState('desc');
+
+  // Memoized fetch to allow calling from WebSocket events
+  const fetchTasks = useCallback(async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
-      const res = await axios.get(`${API_BASE}/api/orders/staff/tasks/${id}/`, {
+      const token = localStorage.getItem('access_token');
+      const res = await axios.get(`${API_BASE}/api/orders/staff/tasks/`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setTask(res.data);
-      
-      // Initialize inspection form for each item in the task
-      const initialForm = {};
-      res.data.items.forEach(item => {
-        initialForm[item.product] = {
-          status: 'GOOD', // GOOD, DAMAGED, EXPIRED
-          verified_qty: item.quantity,
-          expiry_checked: false,
-          notes: ''
-        };
-      });
-      setInspectionResults(initialForm);
+      setTasks(res.data);
+      setError(null);
     } catch (err) {
-      console.error(err);
+      setError("Synchronization failed. Check connection.");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { fetchTaskDetails(); }, [id]);
+  // --- WebSocket Integration ---
+  useEffect(() => {
+    const socket = new WebSocket(WS_BASE);
 
-  const handleInputChange = (productId, field, value) => {
-    setInspectionResults(prev => ({
-      ...prev,
-      [productId]: { ...prev[productId], [field]: value }
-    }));
-  };
+    socket.onopen = () => {
+      console.log("Connected to Command Center Stream");
+      setWsConnected(true);
+    };
 
-  const submitInspection = async () => {
-    const token = localStorage.getItem('access_token');
-    try {
-      await axios.post(`${API_BASE}/api/orders/staff/tasks/${id}/inspect/`, {
-        inspections: inspectionResults,
-        status: 'INSPECTED'
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      // Logic: If any task update occurs, refresh the list silently
+      if (data.type === 'task_update') {
+        console.log(`Real-time update: ${data.message}`);
+        fetchTasks(true); // Silent refresh
+      }
+    };
+
+    socket.onclose = () => {
+      console.log("Disconnected from Stream");
+      setWsConnected(false);
+    };
+
+    return () => socket.close();
+  }, [fetchTasks]);
+
+  useEffect(() => { fetchTasks(); }, [fetchTasks]);
+
+  const filteredTasks = useMemo(() => {
+    return tasks
+      .filter(t => {
+        const matchesSearch = t.order_number.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesStatus = statusFilter === 'ALL' || t.status === statusFilter;
+        return matchesSearch && matchesStatus;
+      })
+      .sort((a, b) => {
+        const dateA = new Date(a.deadline_date || 0);
+        const dateB = new Date(b.deadline_date || 0);
+        return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
       });
-      alert("Inventory Audit and Task Status Updated Successfully!");
-      navigate('/');
-    } catch (err) {
-      alert("Error updating audit. Check all required fields.");
-    }
-  };
+  }, [tasks, searchQuery, statusFilter, sortOrder]);
 
-  if (loading) return <div className="p-20 text-center font-mono text-slate-400">Loading Warehouse Audit Data...</div>;
+  if (loading && tasks.length === 0) return (
+    <div className="flex h-screen items-center justify-center bg-slate-50">
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="animate-spin text-blue-600" size={40} />
+        <p className="font-mono text-slate-500 animate-pulse">Establishing Secure Uplink...</p>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6 md:p-12 font-sans">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+    <div className="min-h-screen bg-slate-50/50 p-4 md:p-10 font-sans">
+      <div className="max-w-7xl mx-auto">
+        
+        <header className="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
-            <button onClick={() => navigate(-1)} className="flex items-center text-slate-400 hover:text-blue-600 transition-colors mb-2">
-              <ChevronLeft size={20} /> Back to Command Center
-            </button>
-            <h1 className="text-3xl font-black text-slate-800 flex items-center gap-3">
-              <ClipboardCheck className="text-blue-600" size={32} />
-              Task Inspection & Audit
+            <div className="flex items-center gap-2 mb-1">
+               {wsConnected ? 
+                <span className="flex items-center gap-1 text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">
+                  <Wifi size={10} /> LIVE
+                </span> : 
+                <span className="flex items-center gap-1 text-[10px] text-red-600 font-bold bg-red-50 px-2 py-0.5 rounded-full">
+                  <WifiOff size={10} /> OFFLINE
+                </span>
+               }
+            </div>
+            <h1 className="text-4xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+              <LayoutDashboard className="text-blue-600" size={36} />
+              Staff Command Center
             </h1>
-            <p className="text-slate-500 mt-1">Order Ref: <span className="font-mono font-bold">{task?.order_number}</span></p>
+            <p className="text-slate-500 font-medium mt-1">Real-time Warehouse Inventory & Task Distribution</p>
           </div>
           
-          <div className="flex gap-3">
-            <button onClick={submitInspection} className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all">
-              <Save size={18} /> COMPLETE & REPORT
+          <div className="flex bg-white p-1 rounded-2xl border border-slate-200 shadow-sm items-center">
+            <div className="px-6 py-2 border-r border-slate-100 text-center">
+              <p className="text-[10px] uppercase font-bold text-slate-400">Total Load</p>
+              <p className="text-xl font-black text-slate-800">{tasks.length}</p>
+            </div>
+            <button 
+              onClick={() => fetchTasks()}
+              className="p-4 text-slate-400 hover:text-blue-600 transition-colors"
+            >
+              <RefreshCcw size={20} className={loading ? "animate-spin" : ""} />
             </button>
           </div>
-        </div>
+        </header>
 
-        {/* Task Items Table */}
-        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-          <div className="p-6 bg-slate-900 text-white flex justify-between items-center">
-            <span className="text-sm font-bold tracking-widest uppercase">Inventory Checklist</span>
-            <span className="text-xs bg-blue-500 px-3 py-1 rounded-full">{task?.items.length} Items Pending</span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-slate-50 border-b text-slate-400 text-[11px] font-bold uppercase tracking-wider">
-                  <th className="px-8 py-4">Item Details</th>
-                  <th className="px-8 py-4">Quantity Verification</th>
-                  <th className="px-8 py-4">Physical Condition</th>
-                  <th className="px-8 py-4">Compliance Check</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {task?.items.map((item) => (
-                  <tr key={item.product} className="hover:bg-slate-50/50 transition-colors">
-                    {/* Item Info */}
-                    <td className="px-8 py-6">
-                      <p className="font-bold text-slate-800">Product ID: {item.product}</p>
-                      <p className="text-xs text-slate-400 mt-1">Target Qty: {item.quantity}</p>
-                    </td>
-
-                    {/* Quantity Update */}
-                    <td className="px-8 py-6">
-                      <div className="flex items-center gap-3">
-                        <Package size={16} className="text-slate-400" />
-                        <input 
-                          type="number"
-                          className="w-20 p-2 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                          value={inspectionResults[item.product]?.verified_qty}
-                          onChange={(e) => handleInputChange(item.product, 'verified_qty', e.target.value)}
-                        />
-                        <span className="text-xs font-bold text-slate-400">UNITS</span>
-                      </div>
-                    </td>
-
-                    {/* Status / Damage Check */}
-                    <td className="px-8 py-6">
-                      <select 
-                        className={`p-2 rounded-lg border text-xs font-bold outline-none transition-all ${
-                          inspectionResults[item.product]?.status === 'GOOD' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
-                          inspectionResults[item.product]?.status === 'DAMAGED' ? 'bg-red-50 text-red-600 border-red-200' :
-                          'bg-amber-50 text-amber-600 border-amber-200'
-                        }`}
-                        value={inspectionResults[item.product]?.status}
-                        onChange={(e) => handleInputChange(item.product, 'status', e.target.value)}
-                      >
-                        <option value="GOOD">✓ GOOD CONDITION</option>
-                        <option value="DAMAGED">⚠ DAMAGED STOCK</option>
-                        <option value="EXPIRED">✖ EXPIRED STOCK</option>
-                      </select>
-                    </td>
-
-                    {/* Expiry Checkbox */}
-                    <td className="px-8 py-6">
-                      <label className="flex items-center gap-3 cursor-pointer group">
-                        <input 
-                          type="checkbox"
-                          className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                          checked={inspectionResults[item.product]?.expiry_checked}
-                          onChange={(e) => handleInputChange(item.product, 'expiry_checked', e.target.checked)}
-                        />
-                        <div className="flex flex-col">
-                          <span className="text-xs font-bold text-slate-700 group-hover:text-blue-600">Expiry Verified</span>
-                          <span className="text-[10px] text-slate-400 uppercase">Checked Date Label</span>
-                        </div>
-                      </label>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Final Reporting Box */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="bg-amber-50 border border-amber-100 p-6 rounded-2xl">
-            <h3 className="flex items-center gap-2 text-amber-800 font-bold mb-2 text-sm uppercase tracking-wider">
-              <AlertOctagon size={18} /> Damage/Loss Report
-            </h3>
-            <textarea 
-              placeholder="Provide details if any items were marked as damaged or missing for the manager report..."
-              className="w-full bg-white border border-amber-200 rounded-xl p-4 text-sm outline-none focus:ring-2 focus:ring-amber-500"
-              rows="3"
+        {/* Toolbar */}
+        <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 mb-8 grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+          <div className="md:col-span-5 relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input 
+              type="text" 
+              placeholder="Quick search Order Ref..." 
+              className="w-full pl-12 pr-4 py-3 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
 
-          <div className="bg-emerald-50 border border-emerald-100 p-6 rounded-2xl flex items-center justify-between">
-            <div>
-              <h3 className="text-emerald-800 font-bold text-sm uppercase tracking-wider">Ready for Packing?</h3>
-              <p className="text-emerald-600 text-xs mt-1">Status will auto-update to 'PACKED' upon submission.</p>
-            </div>
-            <CheckCircle2 size={40} className="text-emerald-200" />
+          <div className="md:col-span-4">
+            <select 
+              className="w-full bg-slate-50 py-3 px-4 rounded-2xl border-none focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-700 cursor-pointer"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="ALL">All Statuses</option>
+              <option value="PENDING">Pending Pickup</option>
+              <option value="PACKING">Packing In-Progress</option>
+              <option value="PACKED">Packed & Ready</option>
+            </select>
           </div>
+
+          <button 
+            onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+            className="md:col-span-3 flex items-center justify-center gap-3 bg-slate-900 text-white py-3 rounded-2xl font-bold hover:bg-blue-600 transition-all active:scale-95"
+          >
+            <ArrowUpDown size={18} />
+            {sortOrder === 'asc' ? 'Deadline: Nearest' : 'Deadline: Furthest'}
+          </button>
+        </div>
+
+        {/* Task Grid */}
+        <div className="grid gap-4">
+          {filteredTasks.length > 0 ? filteredTasks.map((task) => (
+            <div 
+              key={task.id}
+              onClick={() => navigate(`/inspect/${task.id}`)}
+              className="bg-white border border-slate-100 p-5 rounded-3xl flex flex-col md:flex-row md:items-center justify-between hover:border-blue-200 hover:shadow-xl hover:shadow-blue-500/5 cursor-pointer transition-all group animate-in fade-in slide-in-from-bottom-2"
+            >
+              <div className="flex items-center gap-5">
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
+                  task.status === 'PENDING' ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600'
+                }`}>
+                  <ClipboardList size={28} />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-800 text-lg">{task.order_number}</h3>
+                  <div className="flex items-center gap-4 mt-1 text-sm font-medium text-slate-400">
+                    <span className="flex items-center gap-1.5"><Clock size={14} /> {task.deadline_date || 'No Date'}</span>
+                    <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
+                    <span>{task.items?.length || 0} Items</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-6 mt-4 md:mt-0">
+                <div className={`px-4 py-2 rounded-xl text-[11px] font-black tracking-widest flex items-center gap-2 ${
+                   task.status === 'PENDING' ? 'bg-amber-100 text-amber-700' : 
+                   task.status === 'PACKING' ? 'bg-blue-100 text-blue-700' : 
+                   'bg-emerald-100 text-emerald-700'
+                }`}>
+                  {task.status === 'PENDING' ? <AlertCircle size={14}/> : <CheckCircle2 size={14}/>}
+                  {task.status}
+                </div>
+                <ChevronRight className="text-slate-300 group-hover:text-blue-600 group-hover:translate-x-2 transition-all" />
+              </div>
+            </div>
+          )) : (
+            <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-200">
+              <p className="text-slate-400 font-medium italic">No active tasks found.</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
-}
+};
 
 export default TaskInspectionPage;

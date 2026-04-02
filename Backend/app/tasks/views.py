@@ -6,6 +6,13 @@ from rest_framework import status,generics,permissions
 from app.accounts.permissions import IsManager,IsStaffFromDepartment
 from .models import OrderAssignment,OrderItem
 from django.utils import timezone
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from django.db.models import Count
+from app.accounts.models import User
+from app.inventory.models import Product, Notification
+from django.db.models import Q
 
 class ManagerCreateAssignmentView(generics.CreateAPIView):
     serializer_class = OrderAssignmentSerializer
@@ -19,6 +26,52 @@ class ManagerCreateAssignmentView(generics.CreateAPIView):
             department=staff.department
         )
 
+class ManagerDashboardStats(APIView):
+    permission_classes = [IsAuthenticated, IsManager]
+
+    def get(self, request):
+        user = request.user
+        # Logic: If the manager manages all departments, we don't filter by a specific one
+        
+        # 1. Get staff count grouped by department
+        # This will return a list like: [{'department__name': 'Electronics', 'count': 10}, ...]
+        staff_per_dept = User.objects.filter(role='staff')\
+            .values('department__name')\
+            .annotate(count=Count('id'))\
+            .order_by('department__name')
+
+        # 2. Calculate general stats
+        stats = {
+            "total_staff": User.objects.filter(role='staff').count(),
+            "active_tasks": OrderAssignment.objects.filter(status='PACKING').count(),
+            "completed_shipments": OrderAssignment.objects.filter(status__in=['PACKED', 'SHIPPED']).count(),
+            "overdue": OrderAssignment.objects.filter(
+                status__in=['PENDING', 'PACKING'],
+                deadline_date__lt=timezone.now().date()
+            ).count(),
+        }
+
+        # Get recent tasks based on the same filter
+        recent_tasks = OrderAssignment.objects.filter(filter_q).order_by('-assigned_at')[:5].values(
+            'id', 'order_number', 'status', 'staff__username'
+        )
+
+        # Generate Alerts
+        low_stock_products = Product.objects.filter(filter_q)
+        alerts = [
+            {"id": f"stock_{p.id}", "message": f"Low Stock: {p.name} ({p.total_stock} left)"}
+            for p in low_stock_products if p.is_low_stock
+        ]
+
+        # Add system notifications
+        notifications = Notification.objects.filter(filter_q, is_read=False).values('id', 'title', 'message')
+
+        return Response({
+            "stats": stats,
+            "staff_per_dept": list(staff_per_dept), # New field for the frontend
+            "recent_tasks": list(recent_tasks),
+            "alerts": alerts
+        })
 
 class StaffDashboardTasksView(generics.ListAPIView):
     serializer_class = OrderAssignmentSerializer
