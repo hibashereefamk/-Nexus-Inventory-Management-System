@@ -87,6 +87,16 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'app.inventory.tasks.monitor_system_health',
         'schedule': 1800.0,  # 1800 seconds = 30 minutes
     },
+    'update-notifications-every-30-mins': {
+        'task': 'app.inventory.tasks.update_manager_notification_counts',
+        'schedule': 1800.0, # seconds
+    },
+    # Send a formal report every morning at 8:00 AM
+    'daily-manager-report': {
+        'task': 'app.inventory.tasks.send_daily_department_report',
+        'schedule': crontab(hour=8, minute=0),
+        'args': (1,), # Example: Department ID 1
+    },
 }
 
 CELERY_BROKER_URL = 'redis://127.0.0.1:6379/0' # Add this line!

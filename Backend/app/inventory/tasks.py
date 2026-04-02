@@ -149,3 +149,47 @@ def send_manager_report_to_admin(manager_id, report_data):
         from_email=settings.EMAIL_HOST_USER,
         recipient_list=admin_emails
     )
+
+from celery import shared_task
+from django.utils import timezone
+from datetime import timedelta
+from .models import IssueReport, Notification
+from app.accounts.models import User, Department
+
+@shared_task
+def update_manager_notification_counts():
+    """
+    Counts unreviewed staff reports and sends a summary notification 
+    to each department manager.
+    """
+    departments = Department.objects.all()
+    for dept in departments:
+        # Count unreviewed reports for this department
+        pending_count = IssueReport.objects.filter(
+            department=dept,
+            is_reviewed_by_manager=False
+        ).count()
+
+        if pending_count > 0 and dept.manager:
+            # Create a summary notification for the manager
+            Notification.objects.create(
+                title="Pending Staff Reports",
+                message=f"You have {pending_count} staff reports waiting for review.",
+                department=dept,
+                notification_type='SUMMARY'
+            )
+    return "Counts updated and notifications sent."
+
+@shared_task
+def send_daily_department_report(department_id):
+    """
+    Generates and 'sends' a report of all issues in the last 24 hours.
+    In a real app, this would trigger an email or PDF generation.
+    """
+    yesterday = timezone.now() - timedelta(days=1)
+    reports = IssueReport.objects.filter(
+        department_id=department_id,
+        created_at__gte=yesterday
+    )
+    # Logic to format data as a report goes here
+    return f"Report generated for department {department_id} with {reports.count()} items."

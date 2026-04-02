@@ -1,22 +1,11 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import {
-  LayoutDashboard,
-  Users,
-  ClipboardList,
-  AlertTriangle,
-  Truck,
-  Package,
-} from "lucide-react";
+import { LayoutDashboard, Users, ClipboardList, AlertTriangle, Truck } from "lucide-react";
 
 function ManagerWorkflow() {
-  const [stats, setStats] = useState({
-    staff: 0,
-    active_tasks: 0,
-    completed_shipments: 0,
-    overdue: 0,
-  });
-
+  // 1. ALL hooks must be here at the top level
+  const [stats, setStats] = useState({ staff: 0, active_tasks: 0, completed_shipments: 0, overdue: 0 });
+  const [staffPerDept, setStaffPerDept] = useState([]);
   const [recentTasks, setRecentTasks] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,23 +17,22 @@ function ManagerWorkflow() {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      
-      // 1. FIX: Use the full URL or ensure your axios instance has the baseURL set to http://127.0.0.1:8000
-      // Also ensure the Bearer token is attached if not using a global interceptor
-      const token = localStorage.getItem("token"); 
-      const [staffPerDept, setStaffPerDept] = useState([]);
+      const token = localStorage.getItem("access_token"); // Get your token
 
-// Inside fetchDashboardData
-const res = await axios.get("http://127.0.0.1:8000/api/orders/manager/dashboard/");
-if (res.data) {
-    setStats(res.data.stats);
-    setStaffPerDept(res.data.staff_per_dept); // Store the new list
-    setRecentTasks(res.data.recent_tasks);
-    setAlerts(res.data.alerts);
-}
+      const res = await axios.get("http://127.0.0.1:8000/api/orders/manager/dashboard/", {
+        headers: {
+          Authorization: `Bearer ${token}`, // 2. MUST send the token for the UI to work
+        },
+      });
+
+      if (res.data) {
+        setStats(res.data.stats);
+        setStaffPerDept(res.data.staff_per_dept);
+        setRecentTasks(res.data.recent_tasks);
+        setAlerts(res.data.alerts);
+      }
     } catch (error) {
       console.error("Error loading dashboard:", error);
-      // Optional: setStats to 0 to prevent "undefined" errors if request fails
     } finally {
       setLoading(false);
     }
@@ -60,64 +48,46 @@ if (res.data) {
 
       {/* 🔷 Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-        <div className="bg-white p-5 rounded-2xl shadow mb-6">
-    <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-        <Users size={18} /> Staff Breakdown by Department
-    </h2>
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {staffPerDept.map((dept, index) => (
-            <div key={index} className="p-3 bg-gray-50 rounded-lg border">
-                <p className="text-xs text-gray-500 uppercase">{dept.department__name || "Unassigned"}</p>
-                <p className="text-xl font-bold text-blue-600">{dept.count} Staff</p>
-            </div>
-        ))}
-    </div>
-</div>
+        <Card title="Total Staff" value={stats.total_staff} icon={<Users />} />
         <Card title="Active Tasks" value={stats.active_tasks} icon={<ClipboardList />} />
-        <Card title="Completed Shipments" value={stats.completed_shipments} icon={<Truck />} />
-        <Card title="Overdue Tasks" value={stats.overdue} icon={<AlertTriangle />} />
+        <Card title="Completed" value={stats.completed_shipments} icon={<Truck />} />
+        <Card title="Overdue" value={stats.overdue} icon={<AlertTriangle />} />
       </div>
-<div className="bg-white p-5 rounded-2xl shadow mb-6">
-    <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-        <Users size={18} /> Staff Breakdown by Department
-    </h2>
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {staffPerDept.map((dept, index) => (
+
+      {/* 🔷 Staff Breakdown */}
+      <div className="bg-white p-5 rounded-2xl shadow mb-6">
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Users size={18} /> Staff Breakdown by Department
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {staffPerDept.map((dept, index) => (
             <div key={index} className="p-3 bg-gray-50 rounded-lg border">
-                <p className="text-xs text-gray-500 uppercase">{dept.department__name || "Unassigned"}</p>
-                <p className="text-xl font-bold text-blue-600">{dept.count} Staff</p>
+              <p className="text-xs text-gray-500 uppercase">{dept.department__name || "Unassigned"}</p>
+              <p className="text-xl font-bold text-blue-600">{dept.count} Staff</p>
             </div>
-        ))}
-    </div>
-</div>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Recent Tasks */}
         <div className="bg-white p-5 rounded-2xl shadow">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 border-b pb-2">
             <ClipboardList size={18} /> Recent Department Tasks
           </h2>
-
-          {recentTasks.length === 0 ? (
-            <p className="text-gray-400 italic">No recent activity found.</p>
-          ) : (
-            <ul className="space-y-3">
-              {recentTasks.map((task) => (
-                <li key={task.id} className="p-3 border rounded-lg flex justify-between items-center hover:bg-gray-50 transition-colors">
-                  <div className="flex flex-col">
-                    <span className="font-bold text-blue-600">{task.order_number}</span>
-                    <span className="text-xs text-gray-500 font-medium">By: {task.staff__username}</span>
-                  </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                    task.status === 'PACKING' ? 'bg-blue-100 text-blue-700' : 
-                    task.status === 'PACKED' ? 'bg-yellow-100 text-yellow-700' :
-                    task.status === 'SHIPPED' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                  }`}>
-                    {task.status}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <ul className="space-y-3">
+            {recentTasks.map((task) => (
+              <li key={task.id} className="p-3 border rounded-lg flex justify-between items-center">
+                <div>
+                  <span className="font-bold text-blue-600">{task.order_number}</span>
+                  <p className="text-xs text-gray-500">By: {task.staff__username}</p>
+                </div>
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
+                  {task.status}
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
 
         {/* Alerts */}
@@ -125,21 +95,11 @@ if (res.data) {
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-red-600 border-b pb-2">
             <AlertTriangle size={18} /> Critical Alerts
           </h2>
-
-          {alerts.length === 0 ? (
-            <p className="text-gray-400 italic">System clear. No alerts.</p>
-          ) : (
-            <ul className="space-y-3">
-              {alerts.map((alert, index) => (
-                <li key={alert.id || index} className="p-3 border-l-4 border-red-500 rounded-r-lg bg-red-50">
-                  <p className="text-sm font-bold text-red-800 uppercase text-[10px] tracking-tight">
-                    {alert.title || "SYSTEM ALERT"}
-                  </p>
-                  <p className="text-xs text-red-700 font-medium">{alert.message}</p>
-                </li>
-              ))}
-            </ul>
-          )}
+          {alerts.map((alert, index) => (
+            <div key={index} className="p-3 mb-2 border-l-4 border-red-500 bg-red-50 rounded-r-lg">
+              <p className="text-xs text-red-700 font-medium">{alert.message}</p>
+            </div>
+          ))}
         </div>
       </div>
     </div>

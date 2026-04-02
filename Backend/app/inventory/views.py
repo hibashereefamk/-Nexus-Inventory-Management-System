@@ -130,16 +130,41 @@ class NotificationListView(generics.ListAPIView):
 
 class ManagerEscalateIssueView(generics.UpdateAPIView):
     queryset = IssueReport.objects.all()
-    permission_classes = [IsManager]
+    permission_classes = [IsManager] # Only managers can escalate
 
     def patch(self, request, pk):
-        report = self.get_object()
-        # Manager reviews and decides to escalate to Admin
-        report.is_reviewed_by_manager = True
-        report.is_escalated_to_admin = True 
-        report.save()
-        
-        return Response({"message": "Issue escalated to System Admin."})
+        try:
+            # 1. Retrieve the specific report created by staff
+            report = self.get_object()
+            
+            # 2. Capture manager's input from the request
+            manager_notes = request.data.get('manager_notes', '')
+            
+            # 3. Update the report status
+            report.is_reviewed_by_manager = True
+            report.is_escalated_to_admin = True 
+            
+            # Save manager's specific remarks (requires adding this field to models.py)
+            if hasattr(report, 'manager_remarks'):
+                report.manager_remarks = manager_notes
+            
+            report.save()
+
+            # 4. Trigger a Notification for the System Admin
+            Notification.objects.create(
+                title="Staff Issue Escalated",
+                message=f"Manager {request.user.username} escalated a report: {report.title}. Notes: {manager_notes}",
+                notification_type='ESCALATION',
+                # Ensure your notification logic can target Admin users
+            )
+            
+            return Response({
+                "message": "Report successfully sent to Admin.",
+                "report_id": report.id
+            }, status=status.HTTP_200_OK)
+            
+        except IssueReport.DoesNotExist:
+            return Response({"error": "Report not found"}, status=status.HTTP_404_NOT_FOUND)
     
 class ManagerEscalateIssueView(generics.UpdateAPIView):
     queryset = IssueReport.objects.all()

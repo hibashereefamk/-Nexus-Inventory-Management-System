@@ -55,7 +55,6 @@ const Sidebar = () => {
 
   { title: "Performance", icon: <BarChart3 size={20} />, path: "/manager/performance" },
 
-  { title: "Chat & Notifications", icon: <MailPlus size={20} />, path: "/manager/chat" }
 ],
   staff: [
     { title: "Dashboard", icon: <LayoutDashboard size={20} />, path: "/" },

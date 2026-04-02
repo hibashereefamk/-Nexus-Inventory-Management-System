@@ -17,6 +17,10 @@ import StockLookup from "./features/events/StockLookup.jsx";
 import SupplyRequest from "./features/events/SupplyRequest.jsx";
 import TaskInspectionPage from "./features/events/TaskInspectionPage.jsx";
 import DepartmentTaskMaster from "./features/events/DepartmentTaskMaster.jsx";
+import AlertsAndOverdue from "./features/events/AlertsAndOverdue.jsx";
+import TaskRegistry from "./features/events/TaskRegistry.jsx";
+import ManagerEscalateReport from "./features/events/ManagerReport.jsx";
+import ManagerPerformance from "./features/events/ManagerPerformance.jsx";
 function App() {
   return (
      <BrowserRouter>
@@ -40,6 +44,13 @@ function App() {
     <Route path="/user-management" element={<UserManagement />} />
     <Route path="/tasks/registry" element={<DepartmentTaskMaster/>} />
     <Route path="/tasks/inspect/:id" element={<TaskInspectionPage />} />
+    <Route path="/manager/alerts" element={<AlertsAndOverdue/>}/>
+    <Route path="/manager/staff-tasks" element={<DepartmentTaskMaster/>}/>
+    <Route path="/manager/operations" element={<TaskRegistry/>}/>
+    <Route path="/manager/reports" element ={<ManagerEscalateReport/>}/>
+    <Route path="/manager/performance" element={<ManagerPerformance/>}/>
+
+
 </Route>
     </Route>
       </Routes>
