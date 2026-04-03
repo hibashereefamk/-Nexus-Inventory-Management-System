@@ -59,7 +59,7 @@ function DepartmentTaskMaster() {
   const fetchAssignmentData = async () => {
     try {
       const [staffRes, prodRes] = await Promise.all([
-        axios.get(`${API_BASE}/api/accounts/department-staff/`, { headers: { Authorization: `Bearer ${token}` }}),
+        axios.get(`${API_BASE}/api/department-staff/`, { headers: { Authorization: `Bearer ${token}` }}),
         axios.get(`${API_BASE}/api/inventory/products/`, { headers: { Authorization: `Bearer ${token}` }})
       ]);
       setStaffList(staffRes.data);
@@ -79,16 +79,13 @@ function DepartmentTaskMaster() {
     
     // RESTRUCTURE DATA: Wrap product and quantity into the 'items' array
     const payload = {
-        staff: formData.staff,
-        deadline_date: formData.deadline_date,
-        status: 'PENDING',
-        items: [
-            {
-                product: formData.product,
-                quantity: formData.quantity
-            }
-        ]
-    };
+    staff: formData.staff,
+    deadline_date: formData.deadline_date,
+    items: [{ 
+        product: formData.product, 
+        quantity: formData.quantity 
+    }]
+};
 
     try {
         await axios.post(`${API_BASE}/api/tasks/manager/create-assignment/`, payload, {
