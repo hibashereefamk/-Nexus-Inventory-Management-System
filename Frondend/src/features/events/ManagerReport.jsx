@@ -18,7 +18,7 @@ const ManagerEscalateReport = ({ report, onBack, onEscalated }) => {
 
     try {
       // Endpoint corresponds to your ManagerEscalateIssueView
-      const response = await axios.patch(`/api/inventory/issue-reports/${report.id}/escalate/`, {
+      const response = await axios.patch(`http://127.0.0.1:8000/api/inventory/issue-reports/${report.id}/escalate/`, {
         manager_notes: managerNotes // Sent to the backend patch method
       });
 

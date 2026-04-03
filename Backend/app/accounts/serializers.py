@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
-from .models import User,Department
+from .models import User,Department,SystemLog
 from .utils import generate_otp, Util
 from django.utils import timezone
 
@@ -79,7 +79,22 @@ class LoginSerializers(serializers.Serializer):
         if user.is_deleted:
             raise serializers.ValidationError("This account has been deleted")
         return user
-    
+class SystemLogSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model= SystemLog
+        fields ='__all__'
+
+    from rest_framework import serializers
+from django.contrib.auth.models import User
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    # If you have a custom Profile model linked to User, include those fields here
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'first_name', 'last_name', 'email', 'groups']
+
+
    
 
     

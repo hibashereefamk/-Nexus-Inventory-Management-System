@@ -23,9 +23,9 @@ const Sidebar = () => {
   const navigate =useNavigate()
  const menuConfig = {
   admin: [
-  { title: "Dashboard", icon: <LayoutDashboard size={20} />, path: "/admin/dashboard" },
+  { title: "Dashboard", icon: <LayoutDashboard size={20} />, path: "/" },
 
-  { title: "Users & Roles", icon: <Users size={20} />, path: "/admin/users" },
+  { title: "Users & Roles", icon: <Users size={20} />, path: "/user-management" },
 
   { title: "Operations", icon: <Briefcase size={20} />, path: "/admin/operations" }, 
   // (Orders + Shipments + Staff Monitoring combined)
@@ -41,7 +41,7 @@ const Sidebar = () => {
   { title: "Settings & Logs", icon: <Settings size={20} />, path: "/admin/settings" }
 ],
   manager: [
-  { title: "Dashboard", icon: <LayoutDashboard size={20} />, path: "/manager/dashboard" },
+  { title: "Dashboard", icon: <LayoutDashboard size={20} />, path: "/" },
 
   { title: "Staff & Tasks", icon: <Users size={20} />, path: "/manager/staff-tasks" },
   // (Staff + Assign + Department tasks)

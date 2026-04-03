@@ -6,6 +6,7 @@ from app.accounts.permissions import IsManager,IsSuperAdmin
 from django.utils import timezone
 from django.db.models import Count
 from datetime import timedelta
+from app.inventory.models import Product
 
 class ManagerReportView(APIView):
     permission_classes = [IsManager]

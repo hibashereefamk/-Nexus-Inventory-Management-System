@@ -14,6 +14,9 @@ function TopNavbar ({ notifications, badgeCount, resetBadge }) {
     navigate('/inventory/alerts', { state: { alerts: notifications } });
     resetBadge();
   };
+  const Clickhelp=()=>{
+    navigate('/help')
+  }
 
   useEffect(() => {
     // ✅ FIX 2: WebSocket connection
@@ -46,6 +49,7 @@ function TopNavbar ({ notifications, badgeCount, resetBadge }) {
     return () => socket.close();
   }, []);
 
+
   return (
     <div className="top-navbar">
       <div className="top-left"></div>
@@ -58,7 +62,7 @@ function TopNavbar ({ notifications, badgeCount, resetBadge }) {
         </div>
 
         {/* Help */}
-        <div className="nav-item">
+        <div className="nav-item" onClick={Clickhelp}>
           <span className="icon">❓</span>
           <span>Help</span>
         </div>
@@ -78,8 +82,9 @@ function TopNavbar ({ notifications, badgeCount, resetBadge }) {
             {open && (
               <div className="dropdown">
                 <p onClick={() => navigate('/profile')}>Profile</p>
-                <p onClick={() => navigate('/settings')}>Settings</p>
+                <p onClick={() => navigate('/help')}>help</p>
                 <p onClick={() => navigate('/login')}>Logout</p>
+                 
               </div>
             )}
           </div>

@@ -21,6 +21,13 @@ import AlertsAndOverdue from "./features/events/AlertsAndOverdue.jsx";
 import TaskRegistry from "./features/events/TaskRegistry.jsx";
 import ManagerEscalateReport from "./features/events/ManagerReport.jsx";
 import ManagerPerformance from "./features/events/ManagerPerformance.jsx";
+import HelpPage from "./features/events/Help.jsx";
+import ProfilePage from "./features/events/Profile.jsx";
+import OperationsView from "./features/events/OperationView.jsx";
+import ApprovalsView from "./features/events/ApprovalsView.jsx";
+import AnalyticsView from "./features/events/AnalyticsView.jsx";
+import MonitoringView from "./features/events/MonitoringView.jsx";
+import SystemLogsTable from "./features/events/SystemLogsTable.jsx";
 function App() {
   return (
      <BrowserRouter>
@@ -49,7 +56,14 @@ function App() {
     <Route path="/manager/operations" element={<TaskRegistry/>}/>
     <Route path="/manager/reports" element ={<ManagerEscalateReport/>}/>
     <Route path="/manager/performance" element={<ManagerPerformance/>}/>
-
+    <Route path="/help" element={<HelpPage/>}/>
+    <Route path="/profile" element={<ProfilePage/>}/>
+    <Route path="/help" element={<HelpPage/>}/>
+    <Route path="/admin/operations" element={<OperationsView/>}/>
+    <Route path="/admin/reports" element={<ApprovalsView/>}/>
+    <Route path="/admin/analytics" element={<AnalyticsView/>}/>
+    <Route path="/admin/alerts" element={<MonitoringView/>}/>
+    <Route path="/admin/settings" element={<SystemLogsTable/>}/>
 
 </Route>
     </Route>

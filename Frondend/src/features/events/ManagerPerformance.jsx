@@ -9,7 +9,7 @@ const ManagerPerformance = () => {
   useEffect(() => {
     const fetchReports = async () => {
       try {
-        const response = await axios.get('/api/reports/manager-stats/');
+        const response = await axios.get('http://127.0.0.1:8000/api/reports/manager-stats/');
         setReportData(response.data);
       } catch (error) {
         console.error("Error fetching performance data", error);

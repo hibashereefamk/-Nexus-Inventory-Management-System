@@ -88,3 +88,19 @@ class RolePermission(models.Model):
 
     def __str__(self):
         return f"Permissions for {self.get_role_display()}"
+    
+
+
+class SystemLog(models.Model):
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    action = models.CharField(max_length=255)
+    ip_address = models.GenericIPAddressField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+# Helper to log actions
+    def log_event(user, action, request):
+        SystemLog.objects.create(
+        user=user,
+        action=action,
+        ip_address=request.META.get('REMOTE_ADDR')
+    )

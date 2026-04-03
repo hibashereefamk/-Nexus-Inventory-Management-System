@@ -2,16 +2,16 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
 from django.utils import timezone
-from .models import User,Department
-from .serializers import UserSerializer, UserRegistrationSerializer, VerifyOtpSerializer, LoginSerializers,DepartmentSerializer
+from .models import User,SystemLog
+from .serializers import UserSerializer,UserProfileSerializer, UserRegistrationSerializer, VerifyOtpSerializer, LoginSerializers,DepartmentSerializer,SystemLogSerializer
 from .permissions import IsSuperAdmin
 from .utils import is_otp_expired
 from rest_framework.authtoken.models import Token
-from rest_framework.permissions import IsAuthenticated,AllowAny
+from rest_framework.permissions import IsAdminUser,AllowAny,IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import UserActivityLog
 from .utils import Util,generate_otp
-
+from rest_framework import generics
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
@@ -233,3 +233,40 @@ class PasswordResetConfirmView(APIView):
 
         except (TypeError, ValueError, OverflowError, User.DoesNotExist):
             return Response({"error": "Invalid link"}, status=status.HTTP_400_BAD_REQUEST)
+        
+
+class SystemLogListView(generics.ListAPIView):
+    """
+    View to fetch all system audit logs. 
+    Restricted to Admins only.
+    """
+    queryset = SystemLog.objects.all().order_by('-timestamp')
+    serializer_class = SystemLogSerializer
+    permission_classes = [IsAdminUser]
+
+class UserProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        serializer = UserProfileSerializer(request.user)
+        # Note: We can manually add the 'role' based on Django Groups
+        data = serializer.data
+        data['role'] = request.user.groups.first().name if request.user.groups.exists() else "Staff"
+        return Response(data)
+    
+    def patch(self, request):
+        user = request.user
+        profile, created = Profile.objects.get_or_create(user=user)
+        
+        # Update User fields
+        user.first_name = request.data.get('first_name', user.first_name)
+        user.last_name = request.data.get('last_name', user.last_name)
+        user.email = request.data.get('email', user.email)
+        user.save()
+
+        # Update Profile fields
+        profile.phone = request.data.get('phone', profile.phone)
+        profile.bio = request.data.get('bio', profile.bio)
+        profile.save()
+
+        return Response({"message": "Profile updated successfully!"})
