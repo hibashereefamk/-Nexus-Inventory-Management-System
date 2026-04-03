@@ -18,13 +18,13 @@ class ManagerCreateAssignmentView(generics.CreateAPIView):
     serializer_class = OrderAssignmentSerializer
     permission_classes = [permissions.IsAuthenticated, IsManager]
 
+    # Backend/app/tasks/views.py
     def perform_create(self, serializer):
         staff = serializer.validated_data.get('staff')
-
         serializer.save(
             manager=self.request.user,
-            department=staff.department
-        )
+            department=staff.department  # This ensures the task stays in the right dept
+    )
 
 class ManagerDashboardStats(APIView):
     permission_classes = [IsAuthenticated, IsManager]

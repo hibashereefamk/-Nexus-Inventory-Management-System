@@ -45,13 +45,15 @@ function DepartmentTaskMaster() {
       const res = await axios.get(`${API_BASE}/api/orders/staff/tasks/`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setTasks(res.data.results || []);
+      // If the table is empty, try: setTasks(res.data) 
+      // instead of res.data.results
+      setTasks(Array.isArray(res.data) ? res.data : res.data.results || []);
     } catch (err) {
-      console.error("Error fetching dept tasks", err);
+      console.error("Error", err);
     } finally {
       setLoading(false);
     }
-  };
+};
 
   // --- Fetch Staff and Products for the Modal ---
   const fetchAssignmentData = async () => {
@@ -74,18 +76,33 @@ function DepartmentTaskMaster() {
 
   const handleCreateTask = async (e) => {
     e.preventDefault();
+    
+    // RESTRUCTURE DATA: Wrap product and quantity into the 'items' array
+    const payload = {
+        staff: formData.staff,
+        deadline_date: formData.deadline_date,
+        status: 'PENDING',
+        items: [
+            {
+                product: formData.product,
+                quantity: formData.quantity
+            }
+        ]
+    };
+
     try {
-      await axios.post(`${API_BASE}/api/tasks/assignments/create/`, formData, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setShowCreateModal(false);
-      fetchDepartmentTasks(); // Refresh table
-      setFormData({ staff: '', product: '', quantity: 1, deadline_date: '' });
-      alert("Task Assigned Successfully!");
+        await axios.post(`${API_BASE}/api/tasks/manager/create-assignment/`, payload, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        setShowCreateModal(false);
+        fetchDepartmentTasks();
+        setFormData({ staff: '', product: '', quantity: 1, deadline_date: '' });
+        alert("Task Assigned Successfully!");
     } catch (err) {
-      alert("Failed to assign task. Check stock levels.");
+        console.error("Errors:", err.response?.data);
+        alert("Failed to assign task. Ensure all fields are valid.");
     }
-  };
+};
 
   const filteredTasks = tasks.filter(task => {
     const matchesSearch = task.order_number.toLowerCase().includes(searchTerm.toLowerCase());

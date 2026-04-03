@@ -108,6 +108,20 @@ class VerifyOTPAPIView(APIView):
         user.save()
     
         return Response({"message": "Activated. Now you can login."})
+    
+class DepartmentStaffListView(generics.ListAPIView):
+    """
+    Returns staff members belonging to the same department as the Manager.
+    """
+    serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated] # Or use your IsManager permission
+
+    def get_queryset(self):
+        # This filters the list so Managers only see THEIR department's staff
+        return User.objects.filter(
+            role='staff', 
+            department=self.request.user.department
+        )
 
 class DepartmentView(APIView):
     def post(self,request):
