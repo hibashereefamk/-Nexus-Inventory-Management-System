@@ -89,16 +89,22 @@ class StaffUpdateTaskStatusView(generics.UpdateAPIView):
     def get_queryset(self):
         return OrderAssignment.objects.filter(staff=self.request.user)
 
-    def perform_update(self, serializer):
+    # Inside your Task Update View
+def perform_update(self, serializer):
+    instance = serializer.save()
+    if instance.status == 'SHIPPED':
+        # Create a notification for the manager
+        Notification.objects.create(
+            title="Shipment Complete",
+            message=f"Order {instance.order_number} has been shipped by staff.",
+            user=instance.manager, # Notify the manager who assigned it
+            notification_type='TASK_COMPLETE'
+        )
         status_value = self.request.data.get("status")
 
-        if status_value == "SHIPPED":
-            serializer.save(
-                status=status_value,
-                completed_at=timezone.now()
-            )
-        else:
-            serializer.save(status=status_value)
+        
+    else:
+        serializer.save(status=status_value)
 
 class StaffTaskDetailView(generics.RetrieveAPIView):
     serializer_class = OrderAssignmentSerializer

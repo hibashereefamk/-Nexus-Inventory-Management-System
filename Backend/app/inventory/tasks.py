@@ -120,6 +120,18 @@ def send_manager_email(subject, message, department):
 
 # ✅ New: Manager to Admin Manual Reporting Task
 @shared_task
+def check_furniture_alerts():
+    # Find damaged furniture items
+    damaged_items = Product.objects.filter(category__name="Furniture", is_damaged=True)
+    
+    for item in damaged_items:
+        send_mail(
+            'Furniture Damage Alert',
+            f'Item {item.name} is reported as damaged. Please check.',
+            'admin@nexus.com',
+            ['manager@nexus.com'],
+        )
+@shared_task
 def send_admin_report(manager_id, report_text):
     """
     Triggered when a manager manually reports an issue to the Admin.

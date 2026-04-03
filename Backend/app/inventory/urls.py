@@ -1,5 +1,6 @@
 from django.urls import path
-from .views import Productview,IssueReportCreateView,ManagerIssueListView,NotificationListView
+from .views import (Productview,IssueReportCreateView,ManagerIssueListView,NotificationListView,ManagerEscalateIssueView,DepartmentStaffListView)
+
 
 urlpatterns = [
     path('products/',Productview.as_view(),name='product_viwe'),
@@ -7,6 +8,8 @@ urlpatterns = [
     path('report-issue/<int:pk>/', IssueReportCreateView.as_view(), name='report-issue'),
     path('manager/pending-issues/<int:pk>/escalate/', ManagerIssueListView.as_view(), name='manager-issues'),
     path('notifications/', NotificationListView.as_view(), name='notifications'),
+    path('/issue-reports/<int:pk>/escalate/',ManagerEscalateIssueView.as_view(),name='manager_report'),
+    path('manager-department-assign',DepartmentStaffListView.as_view(),name='dept-manger-view')
 
 ]
 

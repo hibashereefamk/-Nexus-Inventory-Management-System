@@ -256,7 +256,7 @@ class UserProfileView(APIView):
     
     def patch(self, request):
         user = request.user
-        profile, created = Profile.objects.get_or_create(user=user)
+        profile, created = User.objects.get_or_create(user=user)
         
         # Update User fields
         user.first_name = request.data.get('first_name', user.first_name)

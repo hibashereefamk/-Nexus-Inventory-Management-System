@@ -10,6 +10,10 @@ from django.db.models import F
 from django.db import transaction
 from django.utils import timezone
 
+from rest_framework import generics
+from app.accounts.models import User
+from app.accounts.serializers import UserSerializer # Ensure you have a basic UserSerializer
+from app.accounts.permissions import IsManager
 
     
 class Productview(APIView):
@@ -166,15 +170,18 @@ class ManagerEscalateIssueView(generics.UpdateAPIView):
         except IssueReport.DoesNotExist:
             return Response({"error": "Report not found"}, status=status.HTTP_404_NOT_FOUND)
     
-class ManagerEscalateIssueView(generics.UpdateAPIView):
-    queryset = IssueReport.objects.all()
+
+class DepartmentStaffListView(generics.ListAPIView):
+    """
+    Returns a list of staff members who belong to the same 
+    department as the requesting manager.
+    """
+    serializer_class = UserSerializer
     permission_classes = [IsManager]
 
-    def patch(self, request, pk):
-        report = self.get_object()
-        # Manager reviews and decides to escalate to Admin
-        report.is_reviewed_by_manager = True
-        report.is_escalated_to_admin = True 
-        report.save()
-        
-        return Response({"message": "Issue escalated to System Admin."})
+    def get_queryset(self):
+        # Filter users where role is 'staff' and department matches the manager's
+        return User.objects.filter(
+            role='staff', 
+            department=self.request.user.department
+        )

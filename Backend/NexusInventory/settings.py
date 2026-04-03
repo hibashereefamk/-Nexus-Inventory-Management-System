@@ -164,6 +164,8 @@ EMAIL_PORT=587
 EMAIL_USE_TLS=True
 EMAIL_HOST_USER = 'hibashareefamk@gmail.com'
 EMAIL_HOST_PASSWORD = 'mjbdvbwpkgciztgv'
+DEFAULT_FROM_EMAIL = 'Nexus Inventory nexus@gmail.com'
+ADMIN_EMAIL = 'admin@nexus.com'
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases

@@ -51,7 +51,8 @@ class Product(models.Model):
     shipped_date = models.DateTimeField(null=True, blank=True)
     quantity_to_ship = models.PositiveIntegerField(default=1)
     is_overdue = models.BooleanField(default=False)
-
+    is_damaged = models.BooleanField(default=False)
+    warranty_expiry = models.DateField(null=True, blank=True)
 
     @property
     def is_low_stock(self):
@@ -133,7 +134,9 @@ class Notification(models.Model):
 class IssueReport(models.Model):
     CAUSE_CHOICES = [('HUMAN', 'Human Error'), ('NATURAL', 'Natural/External'), ('OTHER', 'Other')]
     URGENCY = [('LOW', 'Low'), ('MEDIUM', 'Medium'), ('HIGH', 'High'), ('EMERGENCY', 'Emergency')]
-
+    is_emergency = models.BooleanField(default=False)
+    manager_remarks = models.TextField(blank=True, null=True) # For the "Check-Report"
+    reason = models.CharField(max_length=255, blank=True)
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='issue_reports')
     reported_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='my_reports')
     
