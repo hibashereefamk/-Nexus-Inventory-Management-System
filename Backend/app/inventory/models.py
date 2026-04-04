@@ -40,7 +40,6 @@ class Product(models.Model):
     warranty_expiry = models.DateField(null=True, blank=True)
     damage_notes = models.TextField(null=True, blank=True)
     reorder_level = models.IntegerField(null=True, blank=True)
-
     # Management & Shipping
     assigned_staff = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='assigned_products')
     manager_deadline = models.DateField(null=True, blank=True)
@@ -117,7 +116,7 @@ class Product(models.Model):
         return f"{self.name} - {self.department.name}"
 
 class Notification(models.Model):
-    TYPES = [('LOW_STOCK', 'Low Stock'), ('DAMAGE', 'Damage'), ('EXPIRY', 'Expired')]
+    TYPES = [('LOW_STOCK', 'Low Stock'), ('DAMAGE', 'Damage'), ('EXPIRY', 'Expired'),('ISSUE', 'Issue Reported')]
 
     title = models.CharField(max_length=100)
     message = models.TextField()
@@ -125,7 +124,7 @@ class Notification(models.Model):
 
     notification_type = models.CharField(max_length=20, choices=TYPES ,null=True, blank=True)
     product = models.ForeignKey(Product, on_delete=models.CASCADE, null=True, blank=True)
-
+    is_emergency = models.BooleanField(default=False)
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -133,13 +132,17 @@ class Notification(models.Model):
 
 class IssueReport(models.Model):
     CAUSE_CHOICES = [('HUMAN', 'Human Error'), ('NATURAL', 'Natural/External'), ('OTHER', 'Other')]
-    URGENCY = [('LOW', 'Low'), ('MEDIUM', 'Medium'), ('HIGH', 'High'), ('EMERGENCY', 'Emergency')]
+    URGENCY_CHOICES = [('LOW', 'Low'), ('MEDIUM', 'Medium'), ('HIGH', 'High'), ('EMERGENCY', 'Emergency')]
     is_emergency = models.BooleanField(default=False)
     manager_remarks = models.TextField(blank=True, null=True) # For the "Check-Report"
     reason = models.CharField(max_length=255, blank=True)
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='issue_reports')
     reported_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='my_reports')
-    
+    urgency = models.CharField(
+        max_length=10, 
+        choices=URGENCY_CHOICES, 
+        default='MEDIUM'
+    )
     # The chain of command
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
     is_reviewed_by_manager = models.BooleanField(default=False)

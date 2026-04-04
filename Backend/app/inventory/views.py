@@ -98,15 +98,28 @@ class Productview(APIView):
     
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
+# app/inventory/views.py
+# app/inventory/views.py
+
 class IssueReportCreateView(generics.CreateAPIView):
-    queryset =IssueReport.objects.all()
-    serializer_class =IssueReportserializer
-    permission_classes =[IsStaffFromDepartment]
+    queryset = IssueReport.objects.all()
+    serializer_class = IssueReportserializer
+    permission_classes = [IsStaffFromDepartment]
 
     def perform_create(self, serializer):
-        serializer.save(
-            reported_by = self.request.user,
-            department = self.request.user.department
+        # 1. Save the report
+        report = serializer.save(
+            reported_by=self.request.user,
+            department=self.request.user.department
+        )
+
+        # 2. FIX: Change 'report.issue_type' to 'report.type'
+        Notification.objects.create(
+            title="NEW ISSUE REPORTED",
+            message=f"Staff {self.request.user.username} reported a {report.type} issue for {report.product.name}.",
+            department=self.request.user.department,
+            notification_type='ISSUE', # Ensure 'ISSUE' is added to Notification.TYPES if needed
+            is_emergency=report.is_emergency 
         )
     
 class ManagerIssueListView(generics.ListAPIView):
@@ -185,3 +198,4 @@ class DepartmentStaffListView(generics.ListAPIView):
             role='staff', 
             department=self.request.user.department
         )
+

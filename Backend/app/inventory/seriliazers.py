@@ -15,20 +15,28 @@ class CategorySerializer(serializers.ModelSerializer):
         fields ='__all__'
 
 
+
 class IssueReportserializer(serializers.ModelSerializer):
     reported_by_name = serializers.CharField(source='reported_by.username', read_only=True)
     product_name = serializers.CharField(source='product.name', read_only=True)
 
-
     class Meta:
-        model =IssueReport
+        model = IssueReport
         fields = [
             'id', 'product', 'product_name', 'reported_by_name', 
-            'type', 'cause', 'description', 'urgency', 
+            'type', 'cause', 'description', 'urgency', 'is_emergency',
             'is_reviewed_by_manager', 'created_at'
         ]
         read_only_fields = ['reported_by', 'department', 'created_at']
 
+    def validate(self, data):
+        # Match 'type' instead of 'issue_type'
+        issue_type = data.get('type')
+        product = data.get('product')
+        
+        if product.total_stock <= 0 and issue_type != 'LOST':
+            raise serializers.ValidationError("Cannot report damage/expiry on items with zero stock.")
+        return data
 
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:

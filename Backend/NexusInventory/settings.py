@@ -14,7 +14,7 @@ from pathlib import Path
 from datetime import timedelta
 
 from celery.schedules import crontab
-
+import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -146,6 +146,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'NexusInventory.wsgi.application'
+
 
 
 ASGI_APPLICATION = 'NexusInventory.asgi.application'

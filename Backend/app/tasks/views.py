@@ -14,18 +14,19 @@ from app.accounts.models import User
 from app.inventory.models import Product, Notification
 from django.db.models import Q
 
+
+
 class ManagerCreateAssignmentView(generics.CreateAPIView):
     serializer_class = OrderAssignmentSerializer
     permission_classes = [permissions.IsAuthenticated, IsManager]
 
-    # Backend/app/tasks/views.py
     def perform_create(self, serializer):
-        staff = serializer.validated_data.get('staff')
+        # Automatically assign the manager and the staff's department
+        staff_user = serializer.validated_data.get('staff')
         serializer.save(
             manager=self.request.user,
-            department=staff.department  # This ensures the task stays in the right dept
-    )
-
+            department=staff_user.department if staff_user else None
+        )
 class ManagerDashboardStats(APIView):
     permission_classes = [IsAuthenticated, IsManager]
 
@@ -87,24 +88,24 @@ class StaffUpdateTaskStatusView(generics.UpdateAPIView):
     permission_classes = [permissions.IsAuthenticated, IsStaffFromDepartment]
 
     def get_queryset(self):
+        # Ensure staff can only update their own assigned tasks
         return OrderAssignment.objects.filter(staff=self.request.user)
 
-    # Inside your Task Update View
-def perform_update(self, serializer):
-    instance = serializer.save()
-    if instance.status == 'SHIPPED':
-        # Create a notification for the manager
-        Notification.objects.create(
-            title="Shipment Complete",
-            message=f"Order {instance.order_number} has been shipped by staff.",
-            user=instance.manager, # Notify the manager who assigned it
-            notification_type='TASK_COMPLETE'
-        )
-        status_value = self.request.data.get("status")
-
+    def perform_update(self, serializer):
+        # 1. Get the new status from the request data
+        new_status = self.request.data.get("status")
         
-    else:
-        serializer.save(status=status_value)
+        # 2. Save the instance with the new status
+        instance = serializer.save(status=new_status)
+        
+        # 3. Trigger notification ONLY if it was marked as SHIPPED
+        if new_status == 'SHIPPED':
+            Notification.objects.create(
+                title="Shipment Complete",
+                message=f"Order {instance.order_number} has been shipped by staff.",
+                user=instance.manager,  # Notify the manager who assigned it
+                notification_type='TASK_COMPLETE'
+            )
 
 class StaffTaskDetailView(generics.RetrieveAPIView):
     serializer_class = OrderAssignmentSerializer
@@ -113,40 +114,53 @@ class StaffTaskDetailView(generics.RetrieveAPIView):
     def get_queryset(self):
         return OrderAssignment.objects.filter(staff=self.request.user)  
     
+
+
 class StaffTaskInspectView(generics.UpdateAPIView):
     serializer_class = OrderAssignmentSerializer
-    permission_classes = [permissions.IsAuthenticated, IsStaffFromDepartment]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        # Only allow staff to see tasks assigned to them
         return OrderAssignment.objects.filter(staff=self.request.user)
 
     def perform_update(self, serializer):
-        order_assignment = self.get_object()
-    
+        # 1. Retrieve the instance being updated
+        instance = self.get_object()
+        
+        # 2. Extract the 'inspections' dictionary from the request body
+        # React sends: { "inspections": { "1": { "is_inspected": true } } }
         inspections = self.request.data.get('inspections', {})
-    
-   
-        order_assignment.status = 'INSPECTED'
-        order_assignment.save()
 
-    # Logic to update individual items based on the frontend data
-        order_items = OrderItem.objects.filter(order=order_assignment.order)
+        # 3. Update the OrderItems using the related_name 'items'
+        # This matches the 'items' field in your new Serializer
+        order_items = instance.items.all()
+        
         for item in order_items:
             product_id = str(item.product.id)
             if product_id in inspections:
-                item_data = inspections[product_id]
-                item.is_inspected = True
-            # Update item based on frontend: item_data['status'], item_data['verified_qty']
+                # Update the database field based on the frontend toggle
+                item.is_inspected = inspections[product_id].get('is_inspected', item.is_inspected)
                 item.save()
 
-        serializer.save() 
+        # 4. Optional Logic: Auto-update status if all items are checked
+        all_done = not order_items.filter(is_inspected=False).exists()
+        if all_done:
+            instance.status = 'PACKED'
+            # No need to manually save instance here, serializer.save() below handles it
+        
+        # 5. Save the main OrderAssignment (triggers any signals/notifications)
+        serializer.save()
 
+    def patch(self, request, *args, **kwargs):
+        # We override patch to return a custom success message
+        response = super().patch(request, *args, **kwargs)
+        return Response({
+            "status": "success",
+            "message": "Inspection records synchronized.",
+            "updated_order": response.data
+        }, status=status.HTTP_200_OK)
 
-from django.db.models import Count
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import permissions
-from .models import OrderAssignment
 
 class TaskStatsView(APIView):
     permission_classes = [permissions.IsAuthenticated]
