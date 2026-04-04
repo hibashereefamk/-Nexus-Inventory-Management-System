@@ -114,13 +114,13 @@ const TaskRegistry = ({ tasks }) => {
                   </td>
 
                   {/* 6. Actions */}
-                  <td className="px-6 py-5 text-right">
+                  {/* <td className="px-6 py-5 text-right">
                     <div className="flex justify-end gap-2">
-                      <button className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
+                      <button className="p-2 text-slate-400   rounded-lg transition-all">
                         <MoreVertical size={18} />
                       </button>
                     </div>
-                  </td>
+                  </td> */}
                 </tr>
               );
             })}

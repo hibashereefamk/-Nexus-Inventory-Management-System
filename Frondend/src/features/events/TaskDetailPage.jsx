@@ -50,18 +50,38 @@ function TaskDetailPage() {
   };
 
   const handleSync = async () => {
-    const token = localStorage.getItem('access_token');
-    try {
-      await axios.patch(`${API_BASE}/api/orders/staff/tasks/${id}/inspect/`, 
-        { inspections }, 
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      alert("Inventory sync successful!");
-      fetchTask();
-    } catch (err) {
-      alert("Sync failed. Check connection.");
+  const token = localStorage.getItem('access_token');
+  
+  // Logic check: Are all items checked?
+  const allItemsVerified = task.items.every(item => inspections[item.product]?.is_inspected);
+
+  try {
+    // 1. Sync the inspection checkboxes first
+    await axios.patch(`${API_BASE}/api/orders/staff/tasks/${id}/inspect/`, 
+      { inspections }, 
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    // 2. If all items are verified, update the status to PACKED
+    if (allItemsVerified) {
+      const confirmPacked = window.confirm("All items verified! Change order status to PACKED?");
+      if (confirmPacked) {
+        await axios.patch(`${API_BASE}/api/orders/staff/tasks/${id}/`, 
+          { status: 'PACKED' }, // Sending the new status
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        alert("Order status updated to PACKED!");
+      }
+    } else {
+      alert("Inventory sync successful! (Check all items to mark as PACKED)");
     }
-  };
+
+    fetchTask(); // Refresh data to show new status in UI
+  } catch (err) {
+    console.error(err);
+    alert("Update failed. Ensure you have permission.");
+  }
+};
 
   if (loading) return <div className="p-20 text-center font-black text-slate-400 animate-pulse uppercase tracking-widest">Accessing Secure Manifest...</div>;
 
