@@ -8,7 +8,7 @@ urlpatterns = [
     path('report-issue/', IssueReportCreateView.as_view(), name='report-issue'),
     path('manager/pending-issues/<int:pk>/escalate/', ManagerIssueListView.as_view(), name='manager-issues'),
     path('notifications/', NotificationListView.as_view(), name='notifications'),
-    path('/issue-reports/<int:pk>/escalate/',ManagerEscalateIssueView.as_view(),name='manager_report'),
+    path('issue-reports/<int:pk>/escalate/',ManagerEscalateIssueView.as_view(),name='manager_report'),
     path('manager-department-assign',DepartmentStaffListView.as_view(),name='dept-manger-view')
 
 ]

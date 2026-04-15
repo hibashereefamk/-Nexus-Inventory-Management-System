@@ -12,7 +12,6 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 from datetime import timedelta
-
 from celery.schedules import crontab
 import os
 
@@ -72,33 +71,31 @@ REST_FRAMEWORK = {
 
 CELERY_BEAT_SCHEDULE = {
     'check-stock-every-hour': {
-        'task': 'app.inventory.tasks.monitor_expiry_and_stock',
+        'task': 'app.inventory.tasks.monitor_inventory_health',  # ✅ fixed duplicate 'task'
+        'schedule': 3600.0,  # every 1 hour
+    },
+
+    'daily-expiry-check': {
+        'task': 'app.inventory.tasks.monitor_inventory_health',  # ✅ use correct existing task
+        'schedule': crontab(hour=0, minute=0),  # every midnight
+    },
+
+    'monitor-overdue-tasks-every-hour': {
+        'task': 'app.inventory.tasks.process_overdue_tasks',  # ✅ correct task name
         'schedule': 3600.0,
     },
-    'daily-expiry-check': {
-        'task': 'app.inventory.tasks.check_expiry_and_overdue',
-        'schedule': crontab(hour=0, minute=0),
-    },
-    'monitor-overdue-and-expiry-every-hour': {
-        'task': 'app.inventory.tasks.monitor_system_health',
-        'schedule': 3600.0, # Every hour
-    },
-    'check-system-health-every-30-mins': {
-        'task': 'app.inventory.tasks.monitor_system_health',
-        'schedule': 1800.0,  # 1800 seconds = 30 minutes
-    },
+
     'update-notifications-every-30-mins': {
         'task': 'app.inventory.tasks.update_manager_notification_counts',
-        'schedule': 1800.0, # seconds
+        'schedule': 1800.0,  # every 30 minutes
     },
-    # Send a formal report every morning at 8:00 AM
+
     'daily-manager-report': {
         'task': 'app.inventory.tasks.send_daily_department_report',
-        'schedule': crontab(hour=8, minute=0),
-        'args': (1,), # Example: Department ID 1
+        'schedule': crontab(hour=8, minute=0),  # 8:00 AM daily
+        'args': (1,),  # department ID
     },
 }
-
 CELERY_BROKER_URL = 'redis://127.0.0.1:6379/0' # Add this line!
 CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
 CELERY_TASK_TRACK_STARTED = True
@@ -106,6 +103,24 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'UTC' 
+
+CACHES = {
+
+    "default": {
+
+        "BACKEND": "django_redis.cache.RedisCache",
+
+        "LOCATION": "redis://127.0.0.1:6379/1",
+
+        "OPTIONS": {
+
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+
+        }
+
+    }
+
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
