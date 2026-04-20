@@ -1,29 +1,37 @@
-import { useEffect, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
-const useTaskNotifications = () => {
-  const [notifications, setNotifications] = useState([]);
-  const [badgeCount, setBadgeCount] = useState(0);
+const NotificationContext = createContext();
 
-  useEffect(() => {
-    const socket = new WebSocket('ws://127.0.0.1:8000/ws/notifications/');
+export const NotificationProvider = ({ children }) => {
+    const [notifications, setNotifications] = useState([]);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const token = localStorage.getItem('access_token');
 
-    socket.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  console.log("WebSocket Data Received:", data);
-  
-  if (data.type === 'task_assigned' || data.type === 'status_updated') {
-    // FIX: Change data.payload to data.message
-    setNotifications((prev) => [data.message, ...prev]); 
-    setBadgeCount((prev) => prev + 1);
-    
-    console.log("Real-time Update:", data.message);
-  }
+    useEffect(() => {
+        if (!token) return;
+
+        // Establish WebSocket connection
+        const socket = new WebSocket(`ws://127.0.0.1:8000/ws/notifications/?token=${token}`);
+
+        socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            // Assuming data contains { type: '...', msg: '...' }
+            setNotifications(prev => [data, ...prev]);
+            setUnreadCount(prev => prev + 1);
+        };
+
+        socket.onclose = () => console.log("Notification WebSocket Closed");
+
+        return () => socket.close();
+    }, [token]);
+
+    const markAsRead = () => setUnreadCount(0);
+
+    return (
+        <NotificationContext.Provider value={{ notifications, unreadCount, markAsRead }}>
+            {children}
+        </NotificationContext.Provider>
+    );
 };
 
-    return () => socket.close();
-  }, []);
-
-  return { notifications, badgeCount, setBadgeCount };
-};
-
-export default useTaskNotifications;
+export const useNotifications = () => useContext(NotificationContext);

@@ -28,9 +28,11 @@ import ApprovalsView from "./features/events/ApprovalsView.jsx";
 import AnalyticsView from "./features/events/AnalyticsView.jsx";
 import MonitoringView from "./features/events/MonitoringView.jsx";
 import SystemLogsTable from "./features/events/SystemLogsTable.jsx";
+import { NotificationProvider } from "./hooks/useTaskNotifications.jsx";
 function App() {
   return (
      <BrowserRouter>
+     <NotificationProvider>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/email-verification" element={<EmailVerification/>}/>
@@ -58,7 +60,6 @@ function App() {
     <Route path="/manager/performance" element={<ManagerPerformance/>}/>
     <Route path="/help" element={<HelpPage/>}/>
     <Route path="/profile" element={<ProfilePage/>}/>
-    <Route path="/help" element={<HelpPage/>}/>
     <Route path="/admin/operations" element={<OperationsView/>}/>
     <Route path="/admin/reports" element={<ApprovalsView/>}/>
     <Route path="/admin/analytics" element={<AnalyticsView/>}/>
@@ -68,6 +69,7 @@ function App() {
 </Route>
     </Route>
       </Routes>
+      </NotificationProvider>
     </BrowserRouter>
   )
 }

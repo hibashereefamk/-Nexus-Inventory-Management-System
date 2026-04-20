@@ -1,10 +1,13 @@
 import React, { useState,useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './TopNavbar.css';
+import { Bell } from 'lucide-react';
+import { useNotifications } from '../../hooks/useTaskNotifications';
 
 function TopNavbar ({ notifications, badgeCount, resetBadge }) {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
+  const { unreadCount, markAsRead } = useNotifications();
 
   const username = localStorage.getItem('username') || 'User';
   const role = localStorage.getItem('role_display') || '';
@@ -55,11 +58,16 @@ function TopNavbar ({ notifications, badgeCount, resetBadge }) {
       <div className="top-left"></div>
 
       <div className="top-right">
-        <div className="nav-item" onClick={handleNotificationClick} style={{ cursor: 'pointer' }}>
-          <span className="icon">🔔</span>
-          <span>Notifications</span>
-          {badgeCount > 0 && <span className="badge">{badgeCount}</span>}
-        </div>
+        <div className="relative cursor-pointer" onClick={markAsRead}>
+        <span>Notification</span>
+        <Bell size={20} className="text-slate-600" />
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[9px] w-4 h-4 flex items-center justify-center rounded-full border-2 border-white">
+
+            {unreadCount}
+          </span>
+        )}
+      </div>
 
         {/* Help */}
         <div className="nav-item" onClick={Clickhelp}>

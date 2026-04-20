@@ -1,30 +1,21 @@
-import { useState } from "react";
-function MonitoringView() {
-  const [alerts, setAlerts] = useState([]);
+import { useNotifications } from "../../hooks/useTaskNotifications";
+
+const MonitoringView = () => {
+  const { notifications } = useNotifications();
 
   return (
     <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold">System Health & Alerts</h2>
-        <span className="flex items-center gap-2 text-green-500 text-sm font-medium">
-          <span className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></span> System Live
-        </span>
-      </div>
-      <div className="space-y-3">
-        {alerts.map(alert => (
-          <div key={alert.id} className="flex items-start gap-4 p-4 bg-white border rounded-lg shadow-sm">
-            <div className={`mt-1 h-2 w-2 rounded-full ${alert.level === 'CRITICAL' ? 'bg-red-500' : 'bg-amber-500'}`} />
-            <div className="flex-1">
-              <div className="flex justify-between">
-                <p className="font-bold text-gray-800">{alert.event_type}</p>
-                <span className="text-xs text-gray-400">{alert.timestamp}</span>
-              </div>
-              <p className="text-sm text-gray-600">{alert.description}</p>
-            </div>
+      <h2 className="text-xl font-bold mb-4">Live Inventory Alerts</h2>
+      <div className="space-y-4">
+        {notifications.map((note, index) => (
+          <div key={index} className={`p-4 rounded-lg border-l-4 ${
+            note.type === 'EXPIRY' ? 'bg-red-50 border-red-500' : 'bg-amber-50 border-amber-500'
+          }`}>
+            <p className="text-sm font-semibold">{note.type}</p>
+            <p className="text-xs text-slate-600">{note.msg}</p>
           </div>
         ))}
       </div>
     </div>
   );
-}
-export default MonitoringView;
+};

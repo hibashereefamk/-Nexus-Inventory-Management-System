@@ -206,3 +206,6 @@ def send_daily_department_report(department_id):
     )
     # Logic to format data as a report goes here
     return f"Report generated for department {department_id} with {reports.count()} items."
+# app/inventory/apps.py
+def ready(self):
+    import app.inventory.signals

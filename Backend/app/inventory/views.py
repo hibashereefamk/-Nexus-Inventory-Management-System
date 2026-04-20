@@ -6,6 +6,8 @@ from rest_framework import status
 from app.accounts.permissions import IsManager,IsStaffFromDepartment,IsSuperAdmin
 from .seriliazers import ProductSerializer,CategorySerializer,NotificationSerializer,IssueReportserializer
     
+
+from rest_framework.permissions import IsAuthenticated
 from django.db.models import F
 from django.db import transaction
 from django.utils import timezone
@@ -199,3 +201,13 @@ class DepartmentStaffListView(generics.ListAPIView):
             department=self.request.user.department
         )
 
+
+class UnreadNotificationCountView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        count = Notification.objects.filter(
+            department=request.user.department, 
+            is_read=False
+        ).count()
+        return Response({"unread_count": count})

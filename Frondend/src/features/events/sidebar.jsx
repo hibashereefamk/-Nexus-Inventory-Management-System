@@ -14,12 +14,13 @@ import {
   MailPlus,
   TrendingUp
 } from 'lucide-react';
-
+import { useNotifications } from '../../hooks/useTaskNotifications';
 const Sidebar = () => {
   const userRoleDisplay = localStorage.getItem('role_display') || 'staff';
   const userRole = localStorage.getItem('role') || 'staff';
   const username = localStorage.getItem('username') || 'User'; 
   const profilePic = localStorage.getItem('profile_pic') || null;
+  const { unreadCount } = useNotifications();
   const navigate =useNavigate()
  const menuConfig = {
   admin: [
@@ -80,7 +81,11 @@ const menuItems = menuConfig[userRole] || [{ title: "Dashboard", icon: "🏠", p
 
       </div>
       <hr style={{ border: '1px solid #9c9b9b', margin: '10px 0' }} />
-      
+      {item.title === "Alerts" && unreadCount > 0 && (
+    <span className="ml-auto bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse">
+      {unreadCount}
+    </span>
+  )}
 
       <nav className="sidebar-nav">
       <p className="sidebar-label">Main Menu</p> {/* Professional Label */}
