@@ -1,5 +1,7 @@
 from django.contrib.auth.models import AbstractUser, Group, Permission as AuthPermission
 from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 class User(AbstractUser):
     ROLE_CHOICE = (
@@ -97,10 +99,21 @@ class SystemLog(models.Model):
     ip_address = models.GenericIPAddressField()
     timestamp = models.DateTimeField(auto_now_add=True)
 
-# Helper to log actions
+    @staticmethod
     def log_event(user, action, request):
         SystemLog.objects.create(
         user=user,
         action=action,
         ip_address=request.META.get('REMOTE_ADDR')
     )
+
+
+@receiver(post_save, sender=User)
+def log_user_changes(sender, instance, created, **kwargs):
+    if created:
+        action = f"New User Created: {instance.email}"
+    else:
+        action = f"User Profile Updated: {instance.email}"
+    
+    # This automatically creates a log every time a user is saved
+    SystemLog.objects.create(user=instance, action=action, ip_address="Internal System")

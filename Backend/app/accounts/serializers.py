@@ -85,8 +85,6 @@ class SystemLogSerializer(serializers.ModelSerializer):
         model= SystemLog
         fields ='__all__'
 
-    from rest_framework import serializers
-from django.contrib.auth.models import User
 
 class UserProfileSerializer(serializers.ModelSerializer):
     # If you have a custom Profile model linked to User, include those fields here
