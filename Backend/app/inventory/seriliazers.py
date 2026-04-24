@@ -4,7 +4,7 @@ from .models import Product,Category,IssueReport,Notification
 class ProductSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source='department.name', read_only=True)
     is_urgent = serializers.BooleanField(source='is_low_stock', read_only=True)
-
+    is_low_stock = serializers.ReadOnlyField()
     class Meta:
         model = Product
         fields = '__all__'

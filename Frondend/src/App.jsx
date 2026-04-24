@@ -29,6 +29,8 @@ import AnalyticsView from "./features/events/AnalyticsView.jsx";
 import MonitoringView from "./features/events/MonitoringView.jsx";
 import SystemLogsTable from "./features/events/SystemLogsTable.jsx";
 import { NotificationProvider } from "./hooks/useTaskNotifications.jsx";
+import ProductList from "./features/events/ProductList.jsx";
+
 function App() {
   return (
      <BrowserRouter>
@@ -49,6 +51,7 @@ function App() {
     <Route path="/inventory/history" element={<ProcurementHistory />} />
     <Route path="/requests" element={<SupplyRequest />} />
     <Route path="/inventory/alerts" element={<InventoryAlertPage />} />
+    <Route path="/inventory" element={<ProductList />}/>
     <Route path="/inventory/reorder/:id" element={<InventoryReorderForm/>} />
     <Route path="/user-management" element={<UserManagement />} />
     <Route path="/tasks/registry" element={<DepartmentTaskMaster/>} />

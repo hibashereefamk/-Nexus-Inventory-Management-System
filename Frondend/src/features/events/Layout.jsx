@@ -2,10 +2,10 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './sidebar';
 import TopNavbar from './TopNavbar';
-import useTaskNotifications from '../../hooks/useTaskNotifications';
+import { useNotifications } from '/src/hooks/useTaskNotifications.jsx';
 
 const Layout = () => {
-  const { notifications, badgeCount, setBadgeCount } = useTaskNotifications();
+  const { notifications, badgeCount, setBadgeCount } = useNotifications();
   return (
     <div style={{ display: 'flex' }}>
       <Sidebar />

@@ -19,3 +19,4 @@ const MonitoringView = () => {
     </div>
   );
 };
+export default MonitoringView ;

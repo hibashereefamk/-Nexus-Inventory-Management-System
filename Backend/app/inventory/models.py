@@ -1,9 +1,10 @@
 from django.db import models
-from app.accounts.models import User, Department
+from app.accounts.models import User, SystemLog, Department
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from datetime import timedelta
-
 class Category(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField() 
@@ -114,7 +115,15 @@ class Product(models.Model):
 
     def __str__(self):
         return f"{self.name} - {self.department.name}"
-
+@receiver(post_save, sender=Product)
+def log_inventory_activity(sender, instance, created, **kwargs):
+    if created:
+        action_msg = f"New Product Added: {instance.name} (SKU: {instance.sku})"
+    else:
+        action_msg = f"Product Data Updated: {instance.name}"
+    
+    # User is None here because signals don't natively track the 'request' user
+    SystemLog.log_event(user=None, action=action_msg)
 class Notification(models.Model):
     TYPES = [('LOW_STOCK', 'Low Stock'), ('DAMAGE', 'Damage'), ('EXPIRY', 'Expired'),('ISSUE', 'Issue Reported')]
 
@@ -156,3 +165,33 @@ class IssueReport(models.Model):
 
     def __str__(self):
         return f"{self.type} Report for {self.product.name}"
+    
+# app/inventory/models.py
+
+class StockLog(models.Model):
+    ACTION_CHOICES = [
+        ('ENTRY', 'New Stock Entry'),
+        ('ADJUST', 'Manual Adjustment'),
+        ('EXPIRED', 'Waste: Expired'),
+        ('DAMAGE', 'Waste: Damaged'),
+        ('SHIP', 'Shipped to Client'),
+    ]
+
+    product = models.ForeignKey('Product', on_delete=models.CASCADE, related_name='stock_history')
+    operator = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    
+    action_type = models.CharField(max_length=10, choices=ACTION_CHOICES)
+    
+    # Tracking the change
+    quantity_changed = models.IntegerField() # e.g., -10 or +50
+    resulting_stock = models.IntegerField()  # The stock level after this action
+    
+    # Context
+    reason = models.TextField(blank=True, null=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    
+    # Reference to the approval that authorized this
+    reference_approval = models.ForeignKey('requests.ApprovalRequest', on_delete=models.SET_NULL, null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.product.name} | {self.action_type} | {self.quantity_changed}"

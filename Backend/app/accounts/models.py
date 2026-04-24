@@ -50,6 +50,13 @@ class User(AbstractUser):
     def soft_delete(self):
         self.is_deleted = True
         self.is_active = False
+    @property
+    def is_management(self):
+        """Returns True if the user has permission to add products or manage roles."""
+        return self.role in ['admin', 'manager']
+
+    def __str__(self):
+        return f"{self.email} ({self.role})"
 
 
 class UserActivityLog(models.Model):
@@ -96,24 +103,27 @@ class RolePermission(models.Model):
 class SystemLog(models.Model):
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     action = models.CharField(max_length=255)
-    ip_address = models.GenericIPAddressField()
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)
 
-    @staticmethod
-    def log_event(user, action, request):
-        SystemLog.objects.create(
-        user=user,
-        action=action,
-        ip_address=request.META.get('REMOTE_ADDR')
-    )
-
-
+    @classmethod
+    def log_event(cls, user, action, request=None):
+        # The logic causing the error is likely here
+        ip = "127.0.0.1" # Default to local IP
+        if request:
+            ip = request.META.get('REMOTE_ADDR')
+        else:
+            # DO NOT USE "Internal System" here! 
+            # Use a dummy IP or None
+            ip = "127.0.0.1" 
+        
+        cls.objects.create(user=user, action=action, ip_address=ip)
+# Automatic Log for User Profile Changes
 @receiver(post_save, sender=User)
 def log_user_changes(sender, instance, created, **kwargs):
     if created:
-        action = f"New User Created: {instance.email}"
+        action = f"New Account Created: {instance.email} ({instance.role})"
     else:
-        action = f"User Profile Updated: {instance.email}"
+        action = f"Profile Updated: {instance.email}"
     
-    # This automatically creates a log every time a user is saved
-    SystemLog.objects.create(user=instance, action=action, ip_address="Internal System")
+    SystemLog.log_event(user=instance, action=action)

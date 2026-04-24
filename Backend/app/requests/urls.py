@@ -1,6 +1,10 @@
-from django.urls import path
-from .views import ApprovalViewSet
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import ApprovalRequestViewSet
+
+router = DefaultRouter()
+router.register(r'approvals', ApprovalRequestViewSet)
 
 urlpatterns = [
-    path('/api/approvals/<int:pk>/decide/', ApprovalViewSet.as_view(), name='admin-stats'),
+    path('', include(router.urls)),
 ]

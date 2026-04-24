@@ -4,26 +4,29 @@ from rest_framework.response import Response
 from .models import ApprovalRequest
 from .serilaizers import ApprovalRequestSerializer
 
-class ApprovalViewSet(viewsets.ModelViewSet):
-    queryset = ApprovalRequest.objects.all().order_by('-created_at')
+class ApprovalRequestViewSet(viewsets.ModelViewSet):
+    queryset = ApprovalRequest.objects.all()
     serializer_class = ApprovalRequestSerializer
 
-    @action(detail=True, methods=['post'], url_path='decide')
-    def decide(self, request, pk=None):
-        approval_item = self.get_object()
-        decision = request.data.get('decision') # 'approved' or 'rejected'
+    def perform_create(self, serializer):
+        """Automatically set the user who is logged in as the submitter"""
+        serializer.save(submitted_by=self.request.user)
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        """Custom endpoint: /api/approvals/{id}/approve/"""
+        approval_request = self.get_object()
+        approval_request.decide(user=request.user, decision='approved')
+        return Response({'status': 'Request approved'}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        """Custom endpoint: /api/approvals/{id}/reject/"""
+        approval_request = self.get_object()
+        reason = request.data.get('reason')
         
-        if decision not in ['approved', 'rejected']:
-            return Response({'error': 'Invalid decision'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        approval_item.status = decision
-        approval_item.reviewed_by = request.user
-        approval_item.save()
-        
-        log_event(
-        user=request.user, 
-        action=f"Changed Request #{approval_item.id} status to {decision}", 
-        request=request
-    )
-    
-        return Response({'status': 'Action logged and saved'})
+        if not reason:
+            return Response({'error': 'Reason is required for rejection'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        approval_request.decide(user=request.user, decision='rejected', reason=reason)
+        return Response({'status': 'Request rejected'}, status=status.HTTP_200_OK)
