@@ -2,4 +2,6 @@ from django.apps import AppConfig
 
 
 class RequestsConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
     name = 'app.requests'
+    label = 'requests'   # <--- THIS MUST BE 'requests'
