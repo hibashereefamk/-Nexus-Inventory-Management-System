@@ -23,9 +23,28 @@ class User(AbstractUser):
     bio = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     is_deleted = models.BooleanField(default=False)
-    department = models.ForeignKey('Department', on_delete=models.SET_NULL, null=True, blank=True)
+    department = models.ForeignKey('Department' , on_delete=models.SET_NULL, null=True, blank=True)
 
-    # ADD THESE TWO FIELDS TO FIX THE ERROR
+    warehouse_zone = models.ForeignKey(
+        'Department', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='zone_staff',
+        help_text="The specialized warehouse area this staff member works in."
+    )
+
+    # FEATURE: Availability Status (Handle shifts or breaks)
+    is_available = models.BooleanField(
+        default=True, 
+        help_text="Set to False if staff is on break, off-shift, or at capacity."
+    )
+
+    # FEATURE: Historical Efficiency (Performance Metrics)
+    avg_packing_time_mins = models.DecimalField(
+        max_digits=5, decimal_places=2, default=0.00,
+        help_text="Automatically calculated average time to pack an order."
+    )
     groups = models.ManyToManyField(
         Group,
         related_name='custom_user_set',

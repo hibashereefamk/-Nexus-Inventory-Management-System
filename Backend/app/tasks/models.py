@@ -23,6 +23,44 @@ class OrderAssignment(models.Model):
     assigned_at = models.DateTimeField(auto_now_add=True)
     deadline_date = models.DateField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
+    PRIORITY_CHOICES = [
+        ('LOW', 'Low'), ('MED', 'Medium'), 
+        ('HIGH', 'High'), ('EMER', 'Emergency'),
+    ]
+    priority = models.CharField(
+        max_length=4, choices=PRIORITY_CHOICES, default='MED'
+    )
+
+    # --- THE AUTO-ASSIGNMENT LOGIC ---
+    @classmethod
+    def suggest_staff_for_order(cls, department):
+        """
+        ALGORITHM: Finds available staff specialized in the zone with the
+        lowest workload and best historical efficiency.
+        """
+        # 1. Filter by Zone and Availability
+        potential_staff = User.objects.filter(
+            warehouse_zone=department,
+            role='staff',
+            is_available=True
+        )
+
+        # 2. FEATURE: Workload Calculation (Count Active Tasks)
+        # We want to annotate each staff with their active task count
+        staff_with_load = potential_staff.annotate(
+            active_task_count=models.Count(
+                'assigned_orders',
+                filter=models.Q(status__in=['PENDING', 'PACKING'])
+            )
+        )
+
+        # 3. FEATURE: Smart Ranking
+        # Order by fewest tasks, then by fastest historical packing time
+        best_staff = staff_with_load.order_by(
+            'active_task_count', 'avg_packing_time_mins'
+        ).first()
+
+        return best_staff
     
     def save(self, *args, **kwargs):
         # Check if this is a new task or a status update

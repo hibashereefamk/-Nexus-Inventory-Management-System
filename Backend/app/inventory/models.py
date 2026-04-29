@@ -55,6 +55,14 @@ class Product(models.Model):
     is_overdue = models.BooleanField(default=False)
     is_damaged = models.BooleanField(default=False)
     warranty_expiry = models.DateField(null=True, blank=True)
+    bin_location = models.CharField(
+        max_length=20,default="AISLE-1-A",
+        help_text="Specific warehouse shelf/bin location (e.g., Aisle 4, Shelf B1)."
+    )
+
+    # FEATURE: Food Department Expiry Management (FEFO)
+    batch_number = models.CharField(max_length=50, null=True, blank=True)
+    expiry_date = models.DateField(null=True, blank=True)
 
     @property
     def is_low_stock(self):

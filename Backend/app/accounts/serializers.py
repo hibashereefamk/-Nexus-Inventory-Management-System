@@ -91,8 +91,45 @@ class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'first_name', 'last_name', 'email', 'groups']
+from rest_framework import serializers
+from .models import User
+from app.tasks.models import OrderAssignment
 
+class UserWorkloadSerializer(serializers.ModelSerializer):
+    # These are COMPUTED fields (not in your database model)
+    active_tasks_count = serializers.SerializerMethodField()
+    workload_status = serializers.SerializerMethodField()
+    
+    # This pulls the name from the related Department model
+    zone_name = serializers.ReadOnlyField(source='warehouse_zone.name')
 
+    class Meta:
+        model = User
+        fields = [
+            'id', 'username', 'email', 'role', 
+            'is_available', 'active_tasks_count', 
+            'workload_status', 'zone_name'
+        ]
+
+    def get_active_tasks_count(self, obj):
+        # Dynamically count tasks from the Task app
+        return OrderAssignment.objects.filter(
+            staff=obj, 
+            status__in=['PENDING', 'PACKING']
+        ).count()
+
+    def get_workload_status(self, obj):
+        count = self.get_active_tasks_count(obj)
+        if count == 0: return "Low"
+        if count <= 3: return "Med"
+        return "High"
+
+    def get_workload_status(self, obj):
+        # Determines the color for the heatmap (Low, Med, High)
+        count = self.get_active_tasks_count(obj)
+        if count == 0: return "Low"
+        if 1 <= count <= 3: return "Med"
+        return "High"
    
 
     

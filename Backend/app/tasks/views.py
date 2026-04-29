@@ -9,7 +9,9 @@ from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Count
 from app.accounts.models import User,Department
+from app.accounts.serializers import UserWorkloadSerializer
 from app.inventory.models import Product, Notification
+from app.inventory.seriliazers import ProductSerializer
 from django.db.models import Q
 from django.db import transaction
 from django.core.exceptions import ValidationError
@@ -93,6 +95,32 @@ class AssignOrderSerializer(serializers.ModelSerializer):
             raise ValidationError("Order already assigned.")
 
         return data
+  
+
+class ManagerStaffFulfillmentView(APIView):
+    """
+    Returns data needed for the advanced assignment modal, 
+    including workload heatmaps and auto-suggestions.
+    """
+    permission_classes = [IsManager]
+
+    def get(self, request):
+        # We need to list all staff but annotate them with their workload status
+        # for the heat map in the React form.
+        staff_list = User.objects.filter(role='staff').annotate(
+            current_tasks=Count(
+                'assigned_orders',
+                filter=Q(status__in=['PENDING', 'PACKING'])
+            )
+        ).select_related('warehouse_zone')
+
+        # We also need to add FEFO logic for Food items
+        products = Product.objects.all().order_by('expiry_date')
+
+        return Response({
+            "staff": UserWorkloadSerializer(staff_list, many=True).data,
+            "products": ProductSerializer(products, many=True).data,
+        })
 class ManagerDashboardStats(APIView):
     permission_classes = [IsAuthenticated, IsManager]
 
