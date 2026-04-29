@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import AssignTasksManager from './assigntasksmanager';
 import { useNavigate } from 'react-router-dom';
 import { 
   Filter, Search, ArrowRightLeft, Plus, X, 
@@ -14,6 +15,7 @@ function DepartmentTaskMaster() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showAssignModal ,SetShowAssignModal] =useState(false);
   const [staffList, setStaffList] = useState([]);
   const [products, setProducts] = useState([]);
 
@@ -42,7 +44,7 @@ function DepartmentTaskMaster() {
     }
   };
 
-  const [formData, setFormData] = useState({ staff: '', deadline_date: '' });
+  const [formData, setFormData] = useState({ staff: '', deadline_date: '',department:''});
   const [items, setItems] = useState([{ product: '', quantity: 1, is_inspected: false }]);
 
   const fetchFormData = async () => {
@@ -79,7 +81,7 @@ function DepartmentTaskMaster() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const payload = { staff: formData.staff, deadline_date: formData.deadline_date, items };
+    const payload = { staff: formData.staff, deadline_date: formData.deadline_date,department: formData.department, items };
     try {
       await axios.post(`${API_BASE}/api/orders/manager/create-order/`, payload, {
         headers: { Authorization: `Bearer ${token}` }
@@ -87,7 +89,7 @@ function DepartmentTaskMaster() {
       alert("✅ Order created successfully!");
       setShowCreateModal(false);
       fetchDepartmentTasks();
-      setFormData({ staff: '', deadline_date: '' });
+      setFormData({ staff: '', deadline_date: '',department:'' });
       setItems([{ product: '', quantity: 1, is_inspected: false }]);
     } catch (err) {
       alert("❌ Error creating order");
@@ -129,22 +131,42 @@ function DepartmentTaskMaster() {
         </div>
       </div>
 
-      {/* --- FEATURE: Master Registry Table (White Theme) --- */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white">
-          <h2 className="text-xl font-black tracking-tight text-slate-800">Master Order Registry</h2>
-          <div className="flex gap-3">
-             <button onClick={() => setShowCreateModal(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all">
-               <Plus size={16}/> New Order
-             </button>
-             <div className="relative">
-               <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
-               <input type="text" placeholder="Filter Registry..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-                 className="bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition-all" />
-             </div>
-          </div>
-        </div>
+      {/* --- Master Registry Table (White Theme) --- */}
+<div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+  <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white">
+    <h2 className="text-xl font-black tracking-tight text-slate-800 uppercase">Master Order Registry</h2>
+    
+    <div className="flex gap-3">
+      {/* BUTTON 1: Simple New Order (Triggers setShowCreateModal) */}
+      <button 
+        onClick={() => setShowCreateModal(true)} 
+        className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-5 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all border border-slate-200"
+      >
+        <Plus size={16}/> New Order
+      </button>
 
+      {/* BUTTON 2: Advanced Assign Task (Triggers setShowAssignModal) */}
+      <button 
+        onClick={() => setShowAssignModal(true)} 
+        className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-sm font-black flex items-center gap-2 transition-all shadow-lg shadow-indigo-100"
+      >
+        <Send size={16}/> Assign Tasks
+      </button>
+
+      {/* SEARCH BAR */}
+      <div className="relative">
+        <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
+        <input 
+          type="text" 
+          placeholder="Filter Registry..." 
+          value={searchTerm} 
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition-all" 
+        />
+      </div>
+    </div>
+  </div>
+  
         <table className="w-full text-left">
           <thead className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase tracking-widest">
             <tr>
@@ -215,7 +237,12 @@ function DepartmentTaskMaster() {
                       <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Personnel</label>
                       <select name="staff" value={formData.staff} onChange={handleChange} required className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500">
                         <option value="">Select Staff...</option>
-                        {staffList.map(s => <option key={s.id} value={s.id}>{s.manager} - {s.name}</option>)}
+                        {staffList.map(s => <option key={s.manager} value={s.manager}>{s.staff} - {s.name}</option>)}
+                      </select>
+                      
+                      <select name="department" value={formData.department} onChange={handleChange} required className="mt-2 w-full bg-white border border-slate-200 rounded-xl p-2.5 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="">Select Department...</option>
+                        {staffList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                       </select>
                     </div>
                     <div>
@@ -256,6 +283,12 @@ function DepartmentTaskMaster() {
           </div>
         </div>
       )}
+      <AssignTasksManager 
+        isOpen={showAssignModal} 
+        onClose={() => setShowAssignModal(false)} 
+        onSuccess={fetchDepartmentTasks}
+        token={token}
+      />
     </div>
   );
 }
