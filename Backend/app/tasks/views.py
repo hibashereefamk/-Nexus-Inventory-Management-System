@@ -1,32 +1,98 @@
 from django.shortcuts import render
-from .serilaizers import OrderAssignmentSerializer,UpdateStatusSerializer
+from .serilaizers import OrderAssignmentSerializer,UpdateStatusSerializer,DepartmentManagerSerializer
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status,generics,permissions
 from app.accounts.permissions import IsManager,IsStaffFromDepartment
 from .models import OrderAssignment,OrderItem
 from django.utils import timezone
-from rest_framework.views import APIView
-from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Count
-from app.accounts.models import User
+from app.accounts.models import User,Department
 from app.inventory.models import Product, Notification
 from django.db.models import Q
+from django.db import transaction
+from django.core.exceptions import ValidationError
+from app.accounts.models import SystemLog
+from django.shortcuts import get_object_or_404
+from rest_framework import serializers
 
-
-
-class ManagerCreateAssignmentView(generics.CreateAPIView):
+class ManagerCreateOrderView(generics.CreateAPIView):
+    """
+    Creates an OrderAssignment with items (NO staff assignment here).
+    """
     serializer_class = OrderAssignmentSerializer
     permission_classes = [permissions.IsAuthenticated, IsManager]
 
     def perform_create(self, serializer):
-        # Automatically assign the manager and the staff's department
-        staff_user = serializer.validated_data.get('staff')
-        serializer.save(
-            manager=self.request.user,
-            department=staff_user.department if staff_user else None
-        )
+        items_data = self.request.data.get('items', [])
+
+        if not items_data:
+            raise ValidationError("An order must have at least one product item.")
+
+        with transaction.atomic():
+
+            # ✅ Create order WITHOUT staff
+            assignment = serializer.save(
+                manager=self.request.user,
+                department=self.request.user.department,
+                staff=None,              # explicitly no assignment
+                status='PENDING'         # initial status
+            )
+
+            # ✅ Create items
+            for item in items_data:
+                product = get_object_or_404(Product, id=item['product'])
+                quantity = int(item['quantity'])
+
+                # Stock validation
+                if product.total_stock < quantity:
+                    raise ValidationError(
+                        f"Insufficient stock for {product.name}."
+                    )
+
+                # Reduce stock
+                product.total_stock -= quantity
+                product.save()
+
+                # Create order item
+                OrderItem.objects.create(
+                    assignment=assignment,
+                    product=product,
+                    quantity=quantity
+                )
+
+            # ✅ Logging
+            SystemLog.log_event(
+                user=self.request.user,
+                action=f"Order {assignment.order_number} created with {len(items_data)} items.",
+                request=self.request
+            )
+
+
+class AssignOrderSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OrderAssignment
+        fields = ['staff']
+
+    def validate(self, data):
+        request = self.context['request']
+        staff = data.get('staff')
+        order = self.instance
+
+        # ✅ Must provide staff
+        if not staff:
+            raise ValidationError("Staff is required.")
+
+        # ✅ Department check
+        if staff.department != request.user.department:
+            raise ValidationError("Staff must belong to your department.")
+
+        # ✅ Prevent reassign if already assigned (optional)
+        if order.staff:
+            raise ValidationError("Order already assigned.")
+
+        return data
 class ManagerDashboardStats(APIView):
     permission_classes = [IsAuthenticated, IsManager]
 
@@ -72,6 +138,23 @@ class ManagerDashboardStats(APIView):
             "recent_tasks": list(recent_tasks),
             "alerts": alerts
         })
+from rest_framework import generics, permissions
+from .models import OrderAssignment
+from .serilaizers import OrderAssignmentSerializer # Ensure the spelling matches your file
+from app.accounts.permissions import IsManager
+
+class ManagerTaskListView(generics.ListAPIView):
+    """
+    API endpoint for the Manager to see all tasks 
+    across all departments for the Task Registry.
+    """
+    serializer_class = OrderAssignmentSerializer
+    permission_classes = [permissions.IsAuthenticated, IsManager]
+
+    def get_queryset(self):
+        # Returns all tasks, ordered by the most recently assigned
+        return OrderAssignment.objects.all().order_by('-assigned_at')
+    
 
 class StaffDashboardTasksView(generics.ListAPIView):
     serializer_class = OrderAssignmentSerializer
@@ -180,3 +263,12 @@ class TaskStatsView(APIView):
             "shipped": stats_dict.get('SHIPPED', 0),
         }
         return Response(response_data)
+# Use the serializer created above
+
+class DepartmentListView(generics.ListAPIView):
+    """
+    Returns a list of all departments with their assigned staff.
+    """
+    queryset = Department.objects.select_related('manager').all()
+    serializer_class = DepartmentManagerSerializer
+    permission_classes = [IsAuthenticated]

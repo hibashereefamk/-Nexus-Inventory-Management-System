@@ -6,6 +6,7 @@ from django.dispatch import receiver
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from datetime import timedelta
+
 class Category(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField() 
@@ -192,7 +193,7 @@ class StockLog(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
     
     # Reference to the approval that authorized this
-    reference_approval = models.ForeignKey('ApprovalRequest', on_delete=models.SET_NULL, null=True, blank=True)
+    reference_approval = models.ForeignKey(ApprovalRequest, on_delete=models.SET_NULL, null=True, blank=True)
 
     def __str__(self):
         return f"{self.product.name} | {self.action_type} | {self.quantity_changed}"

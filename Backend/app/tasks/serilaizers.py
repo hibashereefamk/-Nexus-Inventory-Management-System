@@ -2,6 +2,7 @@
 from rest_framework import serializers
 from .models import OrderAssignment, OrderItem
 from app.inventory.models import Product
+from app.accounts.models import Department
 
 # 1. Dedicated serializer for the Product "Card"
 class ProductDetailSerializer(serializers.ModelSerializer):
@@ -11,7 +12,14 @@ class ProductDetailSerializer(serializers.ModelSerializer):
         model = Product
         fields = ['id', 'name', 'sku', 'category_name']
 
-# 2. Serializer for the items in the order
+
+
+class DepartmentManagerSerializer(serializers.ModelSerializer):
+    manager = serializers.CharField(source='manager.username')
+    class Meta:
+        model = Department
+        fields = ['id', 'name', 'slug', 'manager']
+
 class OrderItemSerializer(serializers.ModelSerializer):
     # This allows the frontend to see the FULL product info
     product_details = ProductDetailSerializer(source='product', read_only=True)

@@ -21,7 +21,7 @@ class ApprovalRequest(models.Model):
     
     # Relationships
     submitted_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='submissions')
-    department = models.ForeignKey('Department', on_delete=models.SET_NULL, null=True)
+    department = models.ForeignKey( Department, on_delete=models.SET_NULL, null=True)
     reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='reviews')
 
     # Content & Audit

@@ -257,20 +257,15 @@ class ManagerEscalateIssueView(generics.UpdateAPIView):
     
 
 class DepartmentStaffListView(generics.ListAPIView):
-    """
-    Returns a list of staff members who belong to the same 
-    department as the requesting manager.
-    """
     serializer_class = UserSerializer
     permission_classes = [IsManager]
 
     def get_queryset(self):
-        # Filter users where role is 'staff' and department matches the manager's
+        # This ensures the manager only assigns tasks to their own team
         return User.objects.filter(
             role='staff', 
             department=self.request.user.department
         )
-
 
 class UnreadNotificationCountView(APIView):
     permission_classes = [IsAuthenticated]
