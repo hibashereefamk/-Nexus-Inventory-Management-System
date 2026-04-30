@@ -1,11 +1,31 @@
 from django.urls import path
-from .views import AdminOrderListCreateView, AdminOrderConfirmView, ManagerAssignStaffView, ManagerAssignmentListView
+from .views import (
+    AdminOrderListCreateView, AdminOrderConfirmView,
+    ManagerAssignmentListView, ManagerAssignStaffView,
+    ManagerStaffFulfillmentView, ManagerDashboardStats,
+    StaffDashboardTasksView, StaffUpdateTaskStatusView,
+    StaffTaskDetailView, StaffTaskInspectView, TaskStatsView,
+    DepartmentListView
+)
 
 urlpatterns = [
-    path('admin-orders/', AdminOrderListCreateView.as_view()),
-    path('admin-orders/<int:pk>/confirm/', AdminOrderConfirmView.as_view()),
-    path('manager-assignments/', ManagerAssignmentListView.as_view()),
-    path('manager-assignments/<int:pk>/assign-staff/', ManagerAssignStaffView.as_view()),
+    # --- ADMIN ENDPOINTS ---
+    path('admin/orders/', AdminOrderListCreateView.as_view(), name='admin-order-list'),
+    path('admin/orders/<int:pk>/confirm/', AdminOrderConfirmView.as_view(), name='admin-order-confirm'),
+
+    # --- MANAGER ENDPOINTS ---
+    path('manager/dashboard/', ManagerDashboardStats.as_view(), name='manager-dashboard'),
+    path('manager/assignments/', ManagerAssignmentListView.as_view(), name='manager-assignment-list'),
+    path('manager/assignments/<int:pk>/assign-staff/', ManagerAssignStaffView.as_view(), name='manager-assign-staff'),
+    path('manager/fulfillment-data/', ManagerStaffFulfillmentView.as_view(), name='manager-fulfillment-data'),
+    path('manager/departments/', DepartmentListView.as_view(), name='department-list'),
+
+    # --- STAFF ENDPOINTS ---
+    path('staff/tasks/', StaffDashboardTasksView.as_view(), name='staff-tasks'),
+    path('staff/tasks/<int:pk>/', StaffTaskDetailView.as_view(), name='staff-task-detail'),
+    path('staff/update-task/<int:pk>/', StaffUpdateTaskStatusView.as_view(), name='staff-task-update'),
+    path('staff/tasks/<int:pk>/inspect/', StaffTaskInspectView.as_view(), name='staff-task-inspect'),
+    path('staff/stats/', TaskStatsView.as_view(), name='staff-stats'),
 ]
 
 
@@ -17,32 +37,3 @@ urlpatterns = [
 
 
 
-
-
-
-
-
-# from .views import (StaffDashboardTasksView,ManagerCreateOrderView,ManagerDashboardStats,StaffUpdateTaskStatusView,StaffTaskDetailView,TaskStatsView,StaffTaskInspectView
-#                     ,ManagerTaskListView,ManagerAssignOrderView,DepartmentListView,ManagerStaffFulfillmentView)
-# from django.urls import path
-
-# # Backend/app/tasks/urls.py
-# urlpatterns = [
-#     # STAFF
-#     path('staff/tasks/', StaffDashboardTasksView.as_view()),
-#     path('staff/tasks/<int:pk>/', StaffTaskDetailView.as_view()),
-#     path('staff/update-task/<int:pk>/', StaffUpdateTaskStatusView.as_view()),
-#     path('staff/tasks/<int:pk>/inspect/', StaffTaskInspectView.as_view()),
-#     path('staff/stats/', TaskStatsView.as_view()),
-
-#     # MANAGER
-#     path('manager/create-order/', ManagerCreateOrderView.as_view()),
-#     path('manager/dashboard/', ManagerDashboardStats.as_view()),
-#     path('manager/list/', ManagerTaskListView.as_view()),
-
-#     # 🔥 IMPORTANT
-#     path('manager/assign-data/', ManagerStaffFulfillmentView.as_view()),  # GET (suggestions)
-#     path('manager/orders/<int:pk>/assign/', ManagerAssignOrderView.as_view()),  # PATCH (assign)
-
-#     path('manager/department/staff/', DepartmentListView.as_view()),
-# ]

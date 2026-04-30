@@ -1,140 +1,182 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { X, Send, Info, Clock, Calendar, Package, User } from 'lucide-react';
+import { X, Send, Info, Clock, Calendar, Package, User, Activity, CheckCircle } from 'lucide-react';
 
 const API_BASE = 'http://127.0.0.1:8000';
 
-const AssignTasksManager = ({ isOpen, onClose, onSuccess, token }) => {
+const AssignTasksManager = ({ isOpen, onClose, onSuccess, token, selectedOrder }) => {
   const [staffData, setStaffData] = useState([]);
-  const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  const [formData, setFormData] = useState({ staff: '', deadline_date: '', priority: 'MED' });
-  const [items, setItems] = useState([{ product: '', quantity: 1 }]);
+  // selectedOrder should contain the data from the order the Admin just confirmed
+  const [formData, setFormData] = useState({
+    staff: '',
+    deadline_date: '',
+    priority: 'MED',
+    notes: ''
+  });
 
-  // Load advanced fulfillment data (Heatmaps + FEFO Products)
   useEffect(() => {
     if (isOpen) {
-      const fetchData = async () => {
+      const fetchStaff = async () => {
         try {
-          const res = await axios.get(`${API_BASE}/api/orders/manager/assign-data/`, {
+          const res = await axios.get(`${API_BASE}/api/manager/fulfillment-data/`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           setStaffData(res.data.staff || []);
-          setProducts(res.data.products || []);
         } catch (err) {
-          console.error("Fulfillment Engine Error", err);
+          console.error("Staff Data Error", err);
         } finally {
           setLoading(false);
         }
       };
-      fetchData();
+      fetchStaff();
     }
   }, [isOpen, token]);
 
-  const handleAuthorize = async (e) => {
+  const handleAssign = async (e) => {
     e.preventDefault();
-    const payload = { ...formData, items };
     try {
-      await axios.post(`${API_BASE}/api/tasks/manager/orders/${orderId}/assign/`, payload, {
+      // Endpoint: /api/manager/assignments/<id>/assign-staff/
+      await axios.post(`${API_BASE}/api/manager/assignments/${selectedOrder.id}/assign-staff/`, formData, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      alert("🚀 Order Authorized & Stock Reserved!");
       onSuccess();
       onClose();
     } catch (err) {
-      alert(err.response?.data?.detail || "Authorization Failed");
+      alert(err.response?.data?.detail || "Assignment Failed");
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !selectedOrder) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4 font-sans">
-      <div className="bg-white w-full max-w-6xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200 animate-in zoom-in duration-200">
+    <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-[#1a1f2e] text-slate-300 w-full max-w-6xl rounded-3xl shadow-2xl border border-slate-700 overflow-hidden">
         
         {/* Header */}
-        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-          <div>
-            <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Fulfill & Assign Task</h2>
-            <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">Data-Driven Allocation Engine</p>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={24} className="text-slate-400" /></button>
+        <div className="p-6 border-b border-slate-700 flex justify-between items-center bg-[#1e2536]">
+          <h2 className="text-xl font-bold flex items-center gap-3">
+            <Activity className="text-indigo-500" /> Fulfill & Assign New Task
+          </h2>
+          <button onClick={onClose} className="p-2 hover:bg-slate-700 rounded-full transition-colors">
+            <X size={20} />
+          </button>
         </div>
 
-        <form onSubmit={handleAuthorize} className="p-8 grid grid-cols-1 lg:grid-cols-3 gap-8 overflow-y-auto max-h-[80vh]">
+        <form onSubmit={handleAssign} className="p-8 grid grid-cols-1 lg:grid-cols-3 gap-8 overflow-y-auto max-h-[85vh]">
           
-          {/* Col 1: Manifest */}
-          <div className="space-y-4">
-            <h3 className="text-xs font-black text-indigo-600 uppercase flex items-center gap-2"><Package size={14}/> 1. Order Manifest</h3>
-            <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-200 space-y-3">
-              {items.map((item, idx) => (
-                <div key={idx} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                  <select required className="w-full text-xs font-bold text-slate-700 bg-transparent outline-none mb-2"
-                    value={item.product} onChange={(e) => {
-                      const newItems = [...items];
-                      newItems[idx].product = e.target.value;
-                      setItems(newItems);
-                    }}>
-                    <option value="">Select Item...</option>
-                    {products.map(p => <option key={p.id} value={p.id}>{p.name} (Stock: {p.total_stock})</option>)}
-                  </select>
-                  <div className="flex justify-between items-center border-t pt-2 border-slate-50">
-                    <input type="number" min="1" value={item.quantity} className="w-16 bg-slate-100 rounded-lg p-1 text-xs font-black" 
-                      onChange={(e) => {
-                        const newItems = [...items];
-                        newItems[idx].quantity = e.target.value;
-                        setItems(newItems);
-                      }} />
-                    <button type="button" onClick={() => setItems(items.filter((_, i) => i !== idx))} className="text-red-400 text-[10px] font-black uppercase">Remove</button>
+          {/* Column 1: Order Context */}
+          <div className="space-y-6">
+            <h3 className="text-sm font-bold text-indigo-400 flex items-center gap-2">
+              <span className="bg-indigo-500/20 px-2 py-0.5 rounded text-xs">1</span> Order Context
+            </h3>
+            <div className="bg-[#1e2536] p-5 rounded-2xl border border-slate-700 space-y-4">
+              <div>
+                <p className="text-xs text-slate-500 uppercase">Order ID</p>
+                <p className="text-indigo-400 font-mono font-bold">{selectedOrder.order_number}</p>
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs text-slate-500 uppercase">Order Items ({selectedOrder.items?.length})</p>
+                {selectedOrder.items?.map((item, idx) => (
+                  <div key={idx} className="flex items-center gap-3 bg-[#252d41] p-3 rounded-xl border border-slate-700">
+                    <div className="bg-indigo-500/10 p-2 rounded-lg"><Package size={16} className="text-indigo-400"/></div>
+                    <div>
+                      <p className="text-sm font-semibold">{item.product_name}</p>
+                      <p className="text-[10px] text-slate-500">Qty: {item.quantity} | {item.department_name}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
-              <button type="button" onClick={() => setItems([...items, {product: '', quantity: 1}])} className="w-full py-3 border-2 border-dashed border-slate-300 rounded-2xl text-slate-400 text-[10px] font-black uppercase hover:border-indigo-400 hover:text-indigo-400 transition-all">+ Add Product</button>
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* Col 2: Staff Heatmap */}
-          <div className="space-y-4">
-            <h3 className="text-xs font-black text-indigo-600 uppercase flex items-center gap-2"><User size={14}/> 2. Staff Optimization</h3>
-            <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-200 space-y-4">
-              <div className="grid grid-cols-4 gap-1 h-2 rounded-full overflow-hidden">
-                <div className="bg-emerald-400"></div><div className="bg-amber-400"></div><div className="bg-orange-500"></div><div className="bg-red-500"></div>
+          {/* Column 2: Staff Optimization (The Heatmap) */}
+          <div className="space-y-6">
+            <h3 className="text-sm font-bold text-indigo-400 flex items-center gap-2">
+              <span className="bg-indigo-500/20 px-2 py-0.5 rounded text-xs">2</span> Staff Optimization
+            </h3>
+            <div className="bg-[#1e2536] p-5 rounded-2xl border border-slate-700 space-y-4">
+              <p className="text-xs text-slate-400">Dynamic Workload (Heatmap)</p>
+              
+              {/* Heatmap Legend Grid */}
+              <div className="grid grid-cols-4 gap-1 mb-4">
+                {[...Array(12)].map((_, i) => (
+                  <div key={i} className={`h-6 rounded ${i % 3 === 0 ? 'bg-emerald-500/50' : i % 2 === 0 ? 'bg-amber-500/50' : 'bg-red-500/50'}`}></div>
+                ))}
               </div>
-              <select required value={formData.staff} onChange={(e) => setFormData({...formData, staff: e.target.value})}
-                className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-bold text-sm text-slate-700 focus:ring-2 focus:ring-indigo-500">
-                <option value="">Choose Personnel...</option>
+
+              <select 
+                required 
+                className="w-full bg-[#252d41] border border-slate-600 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                value={formData.staff}
+                onChange={(e) => setFormData({...formData, staff: e.target.value})}
+              >
+                <option value="">Select Personnel</option>
                 {staffData.map(s => (
-                  <option key={s.id} value={s.id}>
-                    {s.username} (Load: {s.active_tasks_count} | {s.zone_name})
-                  </option>
+                  <option key={s.id} value={s.id}>{s.username} (Tasks: {s.current_tasks})</option>
                 ))}
               </select>
-              <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
-                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest flex items-center gap-2"><Info size={12}/> AI Insight</p>
-                <p className="text-[11px] text-indigo-900 font-bold mt-1 leading-relaxed">System suggests staff based on lowest active task count and warehouse zone specialization.</p>
+
+              {/* Staff mini-list visual */}
+              <div className="space-y-2 mt-4">
+                {staffData.slice(0, 3).map(s => (
+                  <div key={s.id} className="flex justify-between items-center p-3 rounded-xl bg-[#252d41]/50 border border-slate-700/50">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-slate-600 flex items-center justify-center text-[10px]"><User size={14}/></div>
+                      <span className="text-xs font-medium">{s.username}</span>
+                    </div>
+                    <span className={`text-[10px] px-2 py-0.5 rounded ${s.current_tasks > 3 ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                      {s.current_tasks} Tasks
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
 
-          {/* Col 3: Execution */}
-          <div className="space-y-4">
-            <h3 className="text-xs font-black text-indigo-600 uppercase flex items-center gap-2"><Clock size={14}/> 3. Execution Details</h3>
-            <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-200 space-y-4">
-              <div className="grid grid-cols-2 gap-2">
-                {['LOW', 'MED', 'HIGH', 'EMER'].map(p => (
-                  <button key={p} type="button" onClick={() => setFormData({...formData, priority: p})}
-                    className={`py-2 rounded-xl text-[10px] font-black transition-all ${formData.priority === p ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-400 border border-slate-200'}`}>{p}</button>
-                ))}
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase flex items-center gap-2"><Calendar size={12}/> Target Deadline</label>
-                <input type="date" required value={formData.deadline_date} onChange={(e) => setFormData({...formData, deadline_date: e.target.value})} 
-                  className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-bold text-xs text-slate-700" />
-              </div>
+          {/* Column 3: Execution Details */}
+          <div className="space-y-6">
+            <h3 className="text-sm font-bold text-indigo-400 flex items-center gap-2">
+              <span className="bg-indigo-500/20 px-2 py-0.5 rounded text-xs">3</span> Execution Details
+            </h3>
+            <div className="bg-[#1e2536] p-5 rounded-2xl border border-slate-700 space-y-4">
+               <div className="space-y-2">
+                 <label className="text-[10px] text-slate-500 uppercase font-bold">Priority</label>
+                 <div className="grid grid-cols-2 gap-2">
+                    {['LOW', 'MED', 'HIGH', 'EMER'].map(p => (
+                      <button 
+                        key={p} 
+                        type="button"
+                        onClick={() => setFormData({...formData, priority: p})}
+                        className={`py-2 rounded-xl text-[10px] font-bold border transition-all ${formData.priority === p ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'bg-[#252d41] border-slate-700 text-slate-400'}`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                 </div>
+               </div>
+
+               <div className="space-y-2">
+                <label className="text-[10px] text-slate-500 uppercase font-bold">Manager Deadline</label>
+                <input 
+                  type="date" 
+                  className="w-full bg-[#252d41] border border-slate-600 rounded-xl p-3 text-sm"
+                  value={formData.deadline_date}
+                  onChange={(e) => setFormData({...formData, deadline_date: e.target.value})}
+                />
+               </div>
+
+               <textarea 
+                  placeholder="Notes for staff..."
+                  className="w-full bg-[#252d41] border border-slate-600 rounded-xl p-3 text-sm h-24 resize-none"
+                  value={formData.notes}
+                  onChange={(e) => setFormData({...formData, notes: e.target.value})}
+               />
             </div>
-            <button type="submit" className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black shadow-2xl hover:bg-black transition-all active:scale-95 flex items-center justify-center gap-3">
-              <Send size={18}/> AUTHORIZE ASSIGNMENT
+
+            <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-lg shadow-indigo-500/30">
+              <CheckCircle size={18} /> CONFIRM & NOTIFY STAFF
             </button>
           </div>
         </form>
@@ -142,5 +184,4 @@ const AssignTasksManager = ({ isOpen, onClose, onSuccess, token }) => {
     </div>
   );
 };
-
 export default AssignTasksManager;
