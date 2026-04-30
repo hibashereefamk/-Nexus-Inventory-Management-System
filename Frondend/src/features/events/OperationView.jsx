@@ -1,66 +1,112 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Settings, Play, CheckCircle } from 'lucide-react';
 
-function OperationsView() {
-  const [items, setItems] = useState([]);
+const OperationsView = ({ userRole }) => {
+  const [activeTab, setActiveTab] = useState('order-entry');
+  const [orders, setOrders] = useState([]);
+  const [assignments, setAssignments] = useState([]);
 
-  useEffect(() => {
-    axios.get('http://127.0.0.1:8000/api/operations/active-tasks/').then(res => setItems(res.data));
-  }, []);
+  // Tab 1 Logic: Fetch Draft Orders for Admin
+  const fetchDraftOrders = async () => {
+    const res = await axios.get('/api/admin/orders/'); // AdminOrderListCreateView
+    setOrders(res.data);
+  };
 
-  const updateStatus = async (id, newStatus) => {
+  const OrderEntryTab = ({ orders, refresh }) => {
+  const handleConfirm = async (orderId) => {
     try {
-      await axios.patch(`/api/operations/tasks/${id}/`, { status: newStatus });
-      setItems(items.map(item => item.id === id ? { ...item, status: newStatus } : item));
+      await axios.post(`/api/admin/orders/${orderId}/confirm/`, { 
+        target_department: 1 // Example ID
+      });
+      alert("Order sent to Manager Queue!");
+      refresh();
     } catch (err) {
-      alert("Failed to update status");
+      console.error("Confirmation failed", err);
     }
   };
 
   return (
-    <div className="p-6">
-      <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-        <Settings size={20} className="text-gray-600" /> Current Operations
-      </h2>
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="w-full text-left">
-          <thead className="bg-gray-100 text-sm uppercase text-gray-600">
-            <tr>
-              <th className="p-4">Reference</th>
-              <th className="p-4">Operator</th>
-              <th className="p-4">Status</th>
-              <th className="p-4">Action</th>
+    <div>
+      <h3>Draft Orders</h3>
+      <table>
+        <thead>
+          <tr><th>Order #</th><th>Product</th><th>Qty</th><th>Action</th></tr>
+        </thead>
+        <tbody>
+          {orders.map(order => (
+            <tr key={order.id}>
+              <td>{order.order_number}</td>
+              <td>{order.product_details.name}</td>
+              <td>{order.quantity}</td>
+              <td>
+                <button onClick={() => handleConfirm(order.id)}>Confirm to Manager</button>
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {items.map(item => (
-              <tr key={item.id} className="border-t">
-                <td className="p-4 font-medium">{item.ref_code}</td>
-                <td className="p-4 text-sm text-gray-600">{item.operator_name}</td>
-                <td className="p-4">
-                  <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                    item.status === 'Running' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-                  }`}>
-                    {item.status}
-                  </span>
-                </td>
-                <td className="p-4">
-                  {item.status !== 'Running' && (
-                    <button 
-                      onClick={() => updateStatus(item.id, 'Running')}
-                      className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-sm font-bold"
-                    >
-                      <Play size={14} /> Start Task
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};const TaskManagementTab = ({ assignments, refresh }) => {
+  const [selectedStaff, setSelectedStaff] = useState({});
+
+  const handleAssign = async (assignmentId) => {
+    await axios.post(`/api/manager/assignments/${assignmentId}/assign-staff/`, {
+      staff: selectedStaff[assignmentId],
+      priority: 'MED'
+    });
+    alert("Staff assigned successfully!");
+    refresh();
+  };
+
+  return (
+    <div>
+      <h3>Pending Assignments</h3>
+      {assignments.map(task => (
+        <div key={task.id} className="task-card">
+          <p>Order: {task.order_number}</p>
+          <select onChange={(e) => setSelectedStaff({...selectedStaff, [task.id]: e.target.value})}>
+            <option value="">Select Staff</option>
+            {/* Populate with staff from ManagerStaffFulfillmentView[cite: 1] */}
+            <option value="10">John Doe (Picker)</option>
+          </select>
+          <button onClick={() => handleAssign(task.id)}>Assign Task</button>
+        </div>
+      ))}
+    </div>
+  );
+};
+  const fetchPendingAssignments = async () => {
+    const res = await axios.get('/api/manager/assignments/'); // ManagerAssignmentListView
+    setAssignments(res.data);
+  };
+
+  useEffect(() => {
+    if (activeTab === 'order-entry') fetchDraftOrders();
+    if (activeTab === 'task-mgmt') fetchPendingAssignments();
+  }, [activeTab]);
+
+  return (
+    <div className="operations-container">
+      {/* Tab Navigation */}
+      <div className="tabs">
+        {userRole === 'admin' && (
+          <button onClick={() => setActiveTab('order-entry')}>Tab 1: Order Entry</button>
+        )}
+        {userRole === 'manager' && (
+          <button onClick={() => setActiveTab('task-mgmt')}>Tab 2: Task Management</button>
+        )}
+        <button onClick={() => setActiveTab('active-ops')}>Tab 3: Active Operations</button>
+      </div>
+
+      {/* Tab Content Rendering */}
+      <div className="tab-content">
+        {activeTab === 'order-entry' && <OrderEntryTab orders={orders} refresh={fetchDraftOrders} />}
+        {activeTab === 'task-mgmt' && <TaskManagementTab assignments={assignments} refresh={fetchPendingAssignments} />}
+        {activeTab === 'active-ops' && <ActiveOperationsTab />}
       </div>
     </div>
   );
-}
+};
+
 export default OperationsView ;

@@ -33,8 +33,7 @@ class OrderItem(models.Model):
     def save(self, *args, **kwargs):
         # Check if this is a new task or a status update
         is_new = self._state.adding
-        if not self.department and self.manager:
-            self.department = self.manager.department
+    
         if not self.order_number:
             self.order_number = f"ORD-{uuid.uuid4().hex[:8].upper()}"
         

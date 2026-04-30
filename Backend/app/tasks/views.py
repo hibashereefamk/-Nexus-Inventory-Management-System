@@ -9,7 +9,6 @@ from app.inventory.models import Product, Notification
 from app.inventory.seriliazers import ProductSerializer
 from django.db.models import Q
 
-from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAdminUser
@@ -21,8 +20,6 @@ from app.accounts.serializers import UserWorkloadSerializer
 from django.db import models
 
 from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
 from django.shortcuts import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 from .models import OrderAssignment
@@ -149,8 +146,9 @@ class ManagerStaffFulfillmentView(APIView):
             "staff": UserWorkloadSerializer(staff_list, many=True).data,
             "products": ProductSerializer(products, many=True).data,
         })
+    
 class ManagerDashboardStats(APIView):
-    permission_classes = [IsAuthenticated, IsManager]
+    permission_classes = [IsAuthenticated,IsManager]
 
     def get(self, request):
         user = request.user
@@ -177,7 +175,10 @@ class ManagerDashboardStats(APIView):
 
         # 4. Get recent tasks
         recent_tasks = OrderAssignment.objects.filter(filter_q).order_by('-assigned_at')[:5].values(
-            'id', 'order_number', 'status', 'staff__username'
+            'id', 
+            'order__order_number',  # Use double underscore here
+            'status', 
+            'staff__username'
         )
 
         # 5. Generate Alerts
