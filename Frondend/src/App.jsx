@@ -18,7 +18,6 @@ import SupplyRequest from "./features/events/SupplyRequest.jsx";
 import TaskInspectionPage from "./features/events/TaskInspectionPage.jsx";
 import ManagerTasksView from "./features/events/ManagerTasksView.jsx";
 import AlertsAndOverdue from "./features/events/AlertsAndOverdue.jsx";
-import TaskRegistry from "./features/events/TaskRegistry.jsx";
 import ManagerEscalateReport from "./features/events/ManagerReport.jsx";
 import ManagerPerformance from "./features/events/ManagerPerformance.jsx";
 import HelpPage from "./features/events/Help.jsx";
@@ -30,6 +29,7 @@ import MonitoringView from "./features/events/MonitoringView.jsx";
 import SystemLogsTable from "./features/events/SystemLogsTable.jsx";
 import { NotificationProvider } from "./hooks/useTaskNotifications.jsx";
 import ProductList from "./features/events/ProductList.jsx";
+import StaffTasksView from "./features/events/StaffTasksView.jsx";
 
 function App() {
   return (
@@ -47,6 +47,7 @@ function App() {
     <Route path="/" element={<Home/>}/>
     <Route path="/tasks/queue" element={<StaffPackingQueue />} /> 
     <Route path="/tasks/detail/:id" element={<TaskDetailPage />} />
+    <Route path="/tasks/show" element={<StaffTasksView />} />
     <Route path="/inventory/lookup" element={<StockLookup />} />
     <Route path="/inventory/history" element={<ProcurementHistory />} />
     <Route path="/requests" element={<SupplyRequest />} />
@@ -57,7 +58,6 @@ function App() {
     <Route path="/tasks/inspect/:id" element={<TaskInspectionPage />} />
     <Route path="/manager/alerts" element={<AlertsAndOverdue/>}/>
     <Route path="/manager/staff-tasks" element={<ManagerTasksView/>}/>
-    <Route path="/manager/operations" element={<TaskRegistry/>}/>
     <Route path="/manager/reports" element ={<ManagerEscalateReport/>}/>
     <Route path="/manager/performance" element={<ManagerPerformance/>}/>
     <Route path="/help" element={<HelpPage/>}/>

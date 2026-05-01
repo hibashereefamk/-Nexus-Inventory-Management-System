@@ -35,7 +35,7 @@ const Sidebar = () => {
     ],
     staff: [
       { title: "Dashboard", icon: <LayoutDashboard size={20} />, path: "/" },
-      { title: "Task Registry", icon: <ClipboardList size={20} />, path: "/tasks/registry" },
+      { title: "Task Registry", icon: <ClipboardList size={20} />, path: "/tasks/show" },
       { title: "Inventory Alerts", icon: <AlertTriangle size={20} />, path: "/inventory/alerts" },
       { title: "Stock Lookup", icon: <Search size={20} />, path: "/inventory/lookup" },
       { title: "Procurement History", icon: <History size={20} />, path: "/inventory/history" },
