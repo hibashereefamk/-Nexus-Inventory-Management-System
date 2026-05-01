@@ -6,6 +6,7 @@ import {
   BarChart3, Briefcase, AlertTriangle, Search, 
   History, MailPlus, Warehouse
 } from 'lucide-react';
+import {FiClipboard} from 'react-icons/fi';
 import { useNotifications } from '../../hooks/useTaskNotifications';
 
 const Sidebar = () => {
@@ -26,7 +27,7 @@ const Sidebar = () => {
     manager: [
       { title: "Dashboard", icon: <LayoutDashboard size={20} />, path: "/" },
       { title: "Inventory management", icon: <Warehouse size={20} />, path: "/inventory" },
-      { title: "Staff & Tasks", icon: <Users size={20} />, path: "/manager/staff-tasks" },
+      { title: "Assignment", icon: <FiClipboard size={20} />, path: "/manager/staff-tasks" },
       { title: "Shipments & Packing", icon: <Briefcase size={20} />, path: "/manager/operations" },
       { title: "Alerts & Overdue", icon: <AlertTriangle size={20} />, path: "/manager/alerts" },
       { title: "Reports", icon: <ClipboardList size={20} />, path: "/manager/reports" },

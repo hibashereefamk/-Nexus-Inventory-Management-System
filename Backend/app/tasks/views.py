@@ -1,5 +1,8 @@
+from collections import defaultdict
+from urllib import response
+import uuid
 
-from .serilaizers import OrderAssignmentSerializer,UpdateStatusSerializer,DepartmentManagerSerializer
+from .serilaizers import OrderAssignmentSerializer,UpdateStatusSerializer,DepartmentManagerSerializer,ProductDetailSerializer
 from rest_framework import generics
 from app.accounts.permissions import IsManager,IsStaffFromDepartment
 from django.utils import timezone
@@ -34,66 +37,221 @@ from app.accounts.permissions import IsManager
 class AdminOrderListCreateView(APIView):
     permission_classes = [IsAdminUser]
 
+    from collections import defaultdict
+
     def get(self, request):
-        """
-        GET /api/admin-orders/
-        """
         orders = OrderItem.objects.all().order_by('-id')
-        serializer = OrderItemSerializer(orders, many=True)
-        return Response(serializer.data)
+
+        grouped = defaultdict(list)
+
+        for item in orders:
+            grouped[item.order_number].append(item)
+
+        response = []
+
+        for order_number, items in grouped.items():
+            response.append({
+            "order_number": order_number,
+            "status": items[0].status,
+            "target_department": items[0].target_department.name if items[0].target_department else None,
+            "products": [
+                {
+                    "name": item.product.name,
+                    "quantity": item.quantity
+                }
+                    for item in items
+            ]
+        })
+
+        return Response(response)
 
     def post(self, request):
-        """
-        POST /api/admin-orders/
-        """
-        serializer = OrderItemSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        items = request.data.get('items', [])
+        target_department = request.data.get('target_department')
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        if not items:
+            return Response({"error": "Items required"}, status=400)
 
+        order_number = f"ORD-{uuid.uuid4().hex[:8].upper()}"  # ✅ ONE order number
+
+        created_items = []
+
+        for item in items:
+            data = {
+            "product": item.get("product"),
+            "quantity": item.get("quantity"),
+            "target_department": target_department,
+            "order_number": order_number   # ✅ SAME order number
+        }
+
+            serializer = OrderItemSerializer(data=data)
+            if serializer.is_valid():
+                serializer.save()
+                created_items.append(serializer.data)
+            else:
+                return Response(serializer.errors, status=400)
+
+        return Response(created_items, status=201)
+            
+    
+class productListView(generics.ListAPIView):
+    queryset = Product.objects.all()
+    serializer_class = ProductDetailSerializer
+    permission_classes = [IsAuthenticated]  
+class DepartmentListView(generics.ListAPIView):
+    """
+    Returns a list of all departments with their assigned staff.
+    """
+    queryset = Department.objects.select_related('manager').all()
+    serializer_class = DepartmentManagerSerializer
+    permission_classes = [IsAuthenticated]   
+
+class AdmnOrderRejectView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, order_number):
+        """
+        POST /api/admin-orders/<order_number>/reject/
+        """
+
+        orders = OrderItem.objects.filter(order_number=order_number)
+
+        if not orders.exists():
+            return Response({
+                "error": "Order not found."
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Check status using first item
+        if orders.first().status != 'DRAFT':
+            return Response({
+                "error": "Only Draft orders can be rejected."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        rejection_reason = request.data.get("rejection_reason", "").strip()
+
+        if not rejection_reason:
+            return Response({
+                "error": "Rejection reason is required."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # ✅ Update ALL items in that order
+        orders.update(
+            status='CANCELLED',
+            rejection_reason=rejection_reason
+        )
+
+        return Response({
+            "message": f"Order {order_number} has been rejected.",
+            "status": "CANCELLED"
+        }, status=status.HTTP_200_OK)
+    
 class AdminOrderConfirmView(APIView):
     permission_classes = [IsAdminUser]
 
-    def post(self, request, pk):
-        """
-        POST /api/admin-orders/<id>/confirm/
-        """
-        order = get_object_or_404(OrderItem, pk=pk)
+    def post(self, request, order_number):
+        orders = OrderItem.objects.filter(order_number=order_number)
 
-        serializer = OrderConfirmationSerializer(
-            order,
-            data=request.data,
-            context={'request': request},
-            partial=True
+        if not orders.exists():
+            return Response({"error": "Order not found"}, status=404)
+
+        first_order = orders.first()
+
+        if first_order.status != 'DRAFT':
+            return Response({"error": "Already processed"}, status=400)
+
+        # ✅ Update ALL items
+        orders.update(status='CONFIRMED')
+
+        # ✅ Create ONE assignment
+        OrderAssignment.objects.create(
+            order=first_order,
+            manager=request.user,
+            department=first_order.target_department,
+            status='PENDING'
         )
 
-        if serializer.is_valid():
-            serializer.save()
-
-            return Response({
-                "message": f"Order {order.order_number} confirmed and sent to manager queue.",
-                "status": "CONFIRMED"
-            }, status=status.HTTP_200_OK)
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
+        return Response({
+            "message": f"{order_number} confirmed",
+            "status": "CONFIRMED"
+        })
 
 class ManagerAssignmentListView(APIView):
     """
     GET /api/manager-assignments/
-    Manager sees all active tasks (PENDING, PACKING)
+    Manager sees all active tasks (grouped by order_number)
     """
     permission_classes = [IsAuthenticated, IsManager]
 
     def get(self, request):
         assignments = OrderAssignment.objects.select_related(
             'order', 'department', 'staff'
-        ).filter(status__in=['PENDING', 'PACKING']).order_by('-assigned_at')
+        ).filter(
+            status__in=['PENDING', 'PACKING']
+        ).order_by('-assigned_at')
 
-        serializer = ManagerDashboardSerializer(assignments, many=True)
-        return Response(serializer.data)
+        grouped = defaultdict(list)
+
+        # 🔹 Group assignments by order_number
+        for a in assignments:
+            grouped[a.order.order_number].append(a)
+
+        response = []
+
+        # 🔹 Build grouped response
+        for order_number, group in grouped.items():
+            first = group[0]
+
+            items = OrderItem.objects.filter(order_number=order_number)
+
+            response.append({
+                "id": first.id,
+                "order_number": order_number,
+                "department": first.department.name if first.department else None,
+                "status": first.status,
+                "staff": first.staff.username if first.staff else None,
+                "products": [
+                    {
+                        "name": item.product.name,
+                        "quantity": item.quantity
+                    }
+                    for item in items
+                ]
+            })
+
+        return Response(response)
+
+def get(self, request):
+    assignments = OrderAssignment.objects.select_related('order', 'department', 'staff')\
+        .filter(status__in=['PENDING', 'PACKING'])\
+        .order_by('-assigned_at')
+
+    grouped = defaultdict(list)
+
+    for a in assignments:
+        grouped[a.order.order_number].append(a)
+
+    response = []
+
+    for order_number, group in grouped.items():
+        first = group[0]
+        items = OrderItem.objects.filter(order_number=order_number)
+
+        response.append({
+            "id": first.id,
+            "order_number": order_number,
+            "department": first.department.name,
+            "status": first.status,
+            "staff": first.staff.username if first.staff else None,
+            "products": [
+                {
+                    "name": item.product.name,
+                    "quantity": item.quantity
+                }
+                for item in items
+            ]
+        })
+
+    return Response(response)
 
 class ManagerAssignStaffView(APIView):
     """
@@ -120,31 +278,22 @@ class ManagerAssignStaffView(APIView):
             }, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+  
 
 class ManagerStaffFulfillmentView(APIView):
-    """
-    Returns data needed for the advanced assignment modal, 
-    including workload heatmaps and auto-suggestions.
-    """
     permission_classes = [IsManager]
 
     def get(self, request):
-        # We need to list all staff but annotate them with their workload status
-        # for the heat map in the React form.
+
         staff_list = User.objects.filter(role='staff').annotate(
             current_tasks=Count(
-                'assigned_orders',
-                filter=Q(status__in=['PENDING', 'PACKING'])
+                'assigned_orders',  # ✅ FIXED (plural)
+                filter=Q(assigned_orders__status__in=['PENDING', 'PACKING'])
             )
         ).select_related('warehouse_zone')
 
-        # We also need to add FEFO logic for Food items
-        products = Product.objects.all().order_by('expiry_date')
-
         return Response({
-            "staff": UserWorkloadSerializer(staff_list, many=True).data,
-            "products": ProductSerializer(products, many=True).data,
+            "staff": UserWorkloadSerializer(staff_list, many=True).data
         })
     
 class ManagerDashboardStats(APIView):

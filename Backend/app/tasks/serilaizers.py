@@ -54,7 +54,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = OrderItem
-        fields = ['id', 'product','status','target_department', 'product_details', 'order_number','quantity', 'is_inspected']
+        fields = ['id', 'product','status','target_department','rejection_reason', 'product_details', 'order_number','quantity', 'is_inspected']
 
 # 3. The main Serializer for the Dashboard
 class OrderAssignmentSerializer(serializers.ModelSerializer):

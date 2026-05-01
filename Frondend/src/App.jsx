@@ -16,7 +16,7 @@ import ProcurementHistory from "./features/events/ProcurementHistory.jsx";
 import StockLookup from "./features/events/StockLookup.jsx";
 import SupplyRequest from "./features/events/SupplyRequest.jsx";
 import TaskInspectionPage from "./features/events/TaskInspectionPage.jsx";
-import DepartmentTaskMaster from "./features/events/DepartmentTaskMaster.jsx";
+import ManagerTasksView from "./features/events/ManagerTasksView.jsx";
 import AlertsAndOverdue from "./features/events/AlertsAndOverdue.jsx";
 import TaskRegistry from "./features/events/TaskRegistry.jsx";
 import ManagerEscalateReport from "./features/events/ManagerReport.jsx";
@@ -54,10 +54,9 @@ function App() {
     <Route path="/inventory" element={<ProductList />}/>
     <Route path="/inventory/reorder/:id" element={<InventoryReorderForm/>} />
     <Route path="/user-management" element={<UserManagement />} />
-    <Route path="/tasks/registry" element={<DepartmentTaskMaster/>} />
     <Route path="/tasks/inspect/:id" element={<TaskInspectionPage />} />
     <Route path="/manager/alerts" element={<AlertsAndOverdue/>}/>
-    <Route path="/manager/staff-tasks" element={<DepartmentTaskMaster/>}/>
+    <Route path="/manager/staff-tasks" element={<ManagerTasksView/>}/>
     <Route path="/manager/operations" element={<TaskRegistry/>}/>
     <Route path="/manager/reports" element ={<ManagerEscalateReport/>}/>
     <Route path="/manager/performance" element={<ManagerPerformance/>}/>

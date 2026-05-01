@@ -22,7 +22,7 @@ class OrderItem(models.Model):
     ]
     status = models.CharField(max_length=10, choices=ORDER_STATUS, default='DRAFT')
     
-    # Add a field to track which department this order belongs to initially
+    rejection_reason = models.TextField(null=True, blank=True)
     target_department = models.ForeignKey('accounts.Department', on_delete=models.PROTECT, null=True)
 
     def confirm_order(self):
@@ -30,17 +30,6 @@ class OrderItem(models.Model):
         if self.status == 'DRAFT':
             self.status = 'CONFIRMED'
             self.save()
-    def save(self, *args, **kwargs):
-        # Check if this is a new task or a status update
-        is_new = self._state.adding
-    
-        if not self.order_number:
-            self.order_number = f"ORD-{uuid.uuid4().hex[:8].upper()}"
-        
-        super().save(*args, **kwargs)
-
-        # 2. Trigger the notification after the save is successful
-        self.notify_task_update(is_new)
     # 3. Add the notification logic as a method
     def notify_task_update(self, is_new):
         channel_layer = get_channel_layer()
@@ -63,9 +52,9 @@ class OrderAssignment(models.Model):
         ('PACKED', 'Packed & Ready'),
         ('SHIPPED', 'Shipped'),
     ]
-    order=models.ForeignKey(OrderItem,on_delete=models.CASCADE,null=True, related_name='assigned_order')
+    order=models.ForeignKey(OrderItem,on_delete=models.CASCADE,null=True, related_name='order_assignments')
     manager = models.ForeignKey(User, on_delete=models.CASCADE, related_name='assigned_tasks')
-    staff = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='order_assignments')
+    staff = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='assigned_orders')
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
     assigned_at = models.DateTimeField(auto_now_add=True)
