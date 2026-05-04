@@ -7,7 +7,7 @@ from .views import (
     ManagerStaffFulfillmentView, ManagerDashboardStats,
     StaffDashboardTasksView, StaffUpdateTaskStatusView,
     StaffTaskDetailView, StaffTaskInspectView, TaskStatsView,
-    DepartmentListView, productListView,AdmnOrderRejectView
+    DepartmentListView, productListView,AdmnOrderRejectView,StaffCreateIssueView
 )
 
 urlpatterns = [
@@ -29,6 +29,7 @@ urlpatterns = [
     path('staff/update-task/<int:pk>/', StaffUpdateTaskStatusView.as_view(), name='staff-task-update'),
     path('staff/tasks/<int:pk>/inspect/', StaffTaskInspectView.as_view(), name='staff-task-inspect'),
     path('staff/stats/', TaskStatsView.as_view(), name='staff-stats'),
+    path('staff/report-issue/', StaffCreateIssueView.as_view()),
 
     path('products-short/', productListView.as_view(), name='product-list'),
     path('departments/', DepartmentListView.as_view(), name='department-list'),          

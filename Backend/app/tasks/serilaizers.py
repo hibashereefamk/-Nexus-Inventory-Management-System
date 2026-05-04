@@ -58,18 +58,22 @@ class OrderItemSerializer(serializers.ModelSerializer):
 
 # 3. The main Serializer for the Dashboard
 class OrderAssignmentSerializer(serializers.ModelSerializer):
-    # 'items' must match the 'related_name' in your OrderItem model
-    items = OrderItemSerializer(many=True, read_only=True)
+    items = serializers.SerializerMethodField()
     department_name = serializers.CharField(source='department.name', read_only=True)
     staff_username = serializers.CharField(source='staff.username', read_only=True)
-    order_number =serializers.CharField(source='order.order_number')
+    order_number = serializers.CharField(source='order.order_number')
 
     class Meta:
         model = OrderAssignment
         fields = [
-            'id',  'status', 'department', 'department_name','order', 'order_number',
-            'staff', 'staff_username', 'deadline_date', 'items', 'assigned_at'
+            'id', 'status', 'department', 'department_name',
+            'order', 'order_number', 'staff', 'staff_username',
+            'deadline_date', 'items', 'assigned_at'
         ]
+
+    def get_items(self, obj):
+        items = OrderItem.objects.filter(order=obj.order)
+        return OrderItemSerializer(items, many=True).data
 
 class AssignOrderSerializer(serializers.ModelSerializer):
     class Meta:

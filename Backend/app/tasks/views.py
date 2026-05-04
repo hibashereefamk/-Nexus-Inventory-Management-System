@@ -8,7 +8,7 @@ from app.accounts.permissions import IsManager,IsStaffFromDepartment
 from django.utils import timezone
 from django.db.models import Count
 from app.accounts.models import Department
-from app.inventory.models import Product, Notification
+from app.inventory.models import Product, Notification,IssueReport
 from app.inventory.seriliazers import ProductSerializer
 from django.db.models import Q
 
@@ -188,7 +188,7 @@ class ManagerAssignmentListView(APIView):
         ).filter(
             status__in=['PENDING', 'PACKING']
         ).order_by('-assigned_at')
-
+        
         grouped = defaultdict(list)
 
         # 🔹 Group assignments by order_number
@@ -386,7 +386,28 @@ class StaffTaskDetailView(generics.RetrieveAPIView):
     def get_queryset(self):
         return OrderAssignment.objects.filter(staff=self.request.user)  
     
+class StaffCreateIssueView(APIView):
+    permission_classes = [IsAuthenticated]
 
+    def post(self, request):
+        product_id = request.data.get("product")
+        description = request.data.get("description")
+        issue_type = request.data.get("type")
+
+        product = get_object_or_404(Product, id=product_id)
+
+        IssueReport.objects.create(
+            product=product,
+            reported_by=request.user,
+            department=request.user.department,
+            type=issue_type,
+            description=description,
+            urgency="HIGH" if issue_type == "DAMAGE" else "MEDIUM"
+        )
+
+        return Response({
+            "message": "Issue reported successfully"
+        })
 
 class StaffTaskInspectView(generics.UpdateAPIView):
     serializer_class = OrderAssignmentSerializer
@@ -406,7 +427,7 @@ class StaffTaskInspectView(generics.UpdateAPIView):
 
         # 3. Update the OrderItems using the related_name 'items'
         # This matches the 'items' field in your new Serializer
-        order_items = OrderItem.objects.filter(order=instance)
+        order_items = OrderItem.objects.filter(order=instance.order)
         
         for item in order_items:
             product_id = str(item.product.id)
@@ -449,6 +470,7 @@ class TaskStatsView(APIView):
             "total_assigned": sum(stats_dict.values()),
             "pending": stats_dict.get('PENDING', 0),
             "packing": stats_dict.get('PACKING', 0),
+            "packed": stats_dict.get('PACKED', 0),
             "shipped": stats_dict.get('SHIPPED', 0),
         }
         return Response(response_data)
