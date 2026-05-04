@@ -1,117 +1,146 @@
-import React, { useState } from "react";
-import axios from "axios";
-import { FiArrowLeft, FiCheck, FiAlertTriangle, FiShield } from "react-icons/fi";
-import { toast } from "react-hot-toast";
+import React, { useState } from 'react';
+import axios from 'axios';
 
-const API = "http://127.0.0.1:8000";
+const ProductVerification = ({ product, onComplete }) => {
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
 
-const Verification = ({ task, onBack }) => {
-  const [items, setItems] = useState(task.items || []);
-  const [verifiedIds, setVerifiedIds] = useState([]);
-
-  const toggleVerify = (id) => {
-    setVerifiedIds(prev => 
-      prev.includes(id) ? prev.filter(v => v !== id) : [...prev, id]
-    );
-  };
-
-  const handleCompleteVerification = async () => {
-  try {
-    const headers = { Authorization: `Bearer ${localStorage.getItem("access_token")}` };
-
-    const inspections = {};
-
-    items.forEach(item => {
-      inspections[item.product_id] = {
-        is_inspected: verifiedIds.includes(item.id)
-      };
+    // Initial state based on your specific models
+    const [formData, setFormData] = useState({
+        is_passed: true,
+        comments: '',
+        // FoodVerification fields
+        batch_lot: '',
+        temp_chain_ok: true,
+        packaging_sealed: true,
+        fssai_verified: true,
+        // FurnitureVerification fields
+        structural_ok: true,
+        finish_no_scratches: true,
+        parts_complete: true,
+        // ElectronicsVerification fields
+        unique_serial_number: '',
+        boot_test_passed: false,
+        ports_physical_ok: true,
+        firmware_version: '',
+        // StationeryVerification fields
+        quantity_reconciled: true,
+        ink_lead_test_passed: true,
+        paper_not_damaged: true,
     });
 
-    await axios.patch(
-      `${API}/api/orders/staff/inspect/${task.id}/`,
-      { inspections },
-      { headers }
-    );
+    const handleInputChange = (e) => {
+        const { name, value, type, checked } = e.target;
+        setFormData(prev => ({
+            ...prev,
+            [name]: type === 'checkbox' ? checked : value
+        }));
+    };
 
-    toast.success("Inspection completed → Order PACKED");
-    onBack();
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setError(null);
 
-  } catch (err) {
-    toast.error("Inspection failed");
-  }
-};
+        try {
+            // Use your exact registered router path
+            await axios.post('/api/inventory/verify-products/', {
+                product: product.id,
+                ...formData
+            });
+            alert('Verification Submitted Successfully!');
+            if (onComplete) onComplete();
+        } catch (err) {
+            // This captures the specific field errors from your Django ValidationError
+            setError(err.response?.data || "Submission failed");
+        } finally {
+            setLoading(false);
+        }
+    };
 
-  return (
-    <div className="min-h-screen bg-slate-900 text-white p-8">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-10">
-          <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white transition">
-            <FiArrowLeft /> Back to Terminal
-          </button>
-          <div className="text-center">
-            <h2 className="text-2xl font-black uppercase tracking-tighter">Verification Mode</h2>
-            <p className="text-xs text-yellow-500 font-bold">Scanning Order #{task.order_number}</p>
-          </div>
-          <div className="flex items-center gap-2 bg-slate-800 px-4 py-2 rounded-lg border border-slate-700">
-             <FiShield className="text-blue-400" />
-             <span className="text-xs font-bold uppercase">QA Control</span>
-          </div>
-        </div>
+    if (!product) return <p>Please select a product to verify.</p>;
 
-        {/* Verification List */}
-        <div className="bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden">
-          <div className="p-4 bg-slate-700/50 flex justify-between text-[10px] font-black uppercase text-slate-400">
-            <span>Item Description</span>
-            <span>Manual Check</span>
-          </div>
-          <div className="divide-y divide-slate-700">
-            {items.map((item) => (
-              <div key={item.id} className="p-6 flex justify-between items-center group hover:bg-slate-700/30 transition">
-                <div className="flex items-center gap-4">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold ${verifiedIds.includes(item.id) ? 'bg-emerald-500/20 text-emerald-500' : 'bg-slate-700 text-slate-500'}`}>
-                    {item.quantity}x
-                  </div>
-                  <div>
-                    <h4 className="font-bold">{item.product_name || "Product Item"}</h4>
-                    <p className="text-xs text-slate-500 uppercase tracking-tighter">SKU: {item.sku || 'N/A'}</p>
-                  </div>
+    const dept = product.department_name?.toLowerCase();
+
+    return (
+        <div className="p-6 bg-white rounded shadow-lg border border-gray-100 max-w-2xl mx-auto">
+            <h2 className="text-2xl font-bold mb-4 border-b pb-2">
+                Verification: <span className="text-blue-500">{product.department_name}</span>
+            </h2>
+            <p className="mb-4 text-gray-600">Product: <strong>{product.name}</strong> (SKU: {product.sku})</p>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Base Verification Fields */}
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-semibold">Inspection Result</label>
+                        <select 
+                            name="is_passed" 
+                            value={formData.is_passed} 
+                            onChange={handleInputChange}
+                            className="w-full border rounded p-2 mt-1"
+                        >
+                            <option value={true}>PASS (In Stock)</option>
+                            <option value={false}>FAIL (Quarantine/Damage)</option>
+                        </select>
+                    </div>
                 </div>
-                <button 
-                  onClick={() => toggleVerify(item.id)}
-                  className={`w-12 h-12 rounded-full border-2 flex items-center justify-center transition-all ${
-                    verifiedIds.includes(item.id) 
-                    ? 'bg-emerald-500 border-emerald-500 text-white scale-110' 
-                    : 'border-slate-600 text-transparent hover:border-emerald-500'
-                  }`}
-                >
-                  <FiCheck size={24} />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
 
-        {/* Action Footer */}
-        <div className="mt-10 flex flex-col items-center">
-           <div className="text-slate-500 text-xs mb-4 uppercase font-bold">
-             Items Verified: {verifiedIds.length} / {items.length}
-           </div>
-           <button 
-             disabled={verifiedIds.length !== items.length}
-             onClick={handleCompleteVerification}
-             className={`px-12 py-4 rounded-xl font-black uppercase tracking-widest transition shadow-2xl ${
-               verifiedIds.includes(items[0]?.id) // Just a mock check for UX
-               ? 'bg-blue-600 hover:bg-blue-500 text-white' 
-               : 'bg-slate-800 text-slate-600 cursor-not-allowed'
-             }`}
-           >
-             Finalize & Move to Packed
-           </button>
+                {/* Dynamic Fields based on Department */}
+                {dept === 'food' && (
+                    <div className="p-4 bg-blue-50 rounded space-y-3">
+                        <input type="text" name="batch_lot" placeholder="Batch/Lot Number" onChange={handleInputChange} className="w-full border p-2 rounded" required />
+                        <div className="flex gap-4">
+                            <label className="flex items-center gap-2"><input type="checkbox" name="temp_chain_ok" checked={formData.temp_chain_ok} onChange={handleInputChange} /> Temp OK</label>
+                            <label className="flex items-center gap-2"><input type="checkbox" name="packaging_sealed" checked={formData.packaging_sealed} onChange={handleInputChange} /> Sealed</label>
+                        </div>
+                    </div>
+                )}
+
+                {dept === 'electronics' && (
+                    <div className="p-4 bg-green-50 rounded space-y-3">
+                        <input type="text" name="unique_serial_number" placeholder="Unique Serial Number" onChange={handleInputChange} className="w-full border p-2 rounded" required />
+                        <input type="text" name="firmware_version" placeholder="Firmware Version" onChange={handleInputChange} className="w-full border p-2 rounded" />
+                        <label className="flex items-center gap-2"><input type="checkbox" name="boot_test_passed" checked={formData.boot_test_passed} onChange={handleInputChange} /> Power On (DOA) Test Pass</label>
+                    </div>
+                )}
+
+                {dept === 'furniture' && (
+                    <div className="p-4 bg-amber-50 rounded space-y-3">
+                        <label className="flex items-center gap-2"><input type="checkbox" name="structural_ok" checked={formData.structural_ok} onChange={handleInputChange} /> Structural Integrity Passed</label>
+                        <label className="flex items-center gap-2"><input type="checkbox" name="finish_no_scratches" checked={formData.finish_no_scratches} onChange={handleInputChange} /> No Physical Scratches</label>
+                    </div>
+                )}
+
+                {dept === 'stationery' && (
+                    <div className="p-4 bg-purple-50 rounded space-y-3">
+                        <label className="flex items-center gap-2"><input type="checkbox" name="quantity_reconciled" checked={formData.quantity_reconciled} onChange={handleInputChange} /> Quantity Count Correct</label>
+                        <label className="flex items-center gap-2"><input type="checkbox" name="ink_lead_test_passed" checked={formData.ink_lead_test_passed} onChange={handleInputChange} /> Ink/Lead Quality Pass</label>
+                    </div>
+                )}
+
+                <div>
+                    <label className="block text-sm font-semibold">Comments</label>
+                    <textarea name="comments" value={formData.comments} onChange={handleInputChange} className="w-full border rounded p-2 mt-1" rows="3" placeholder="Describe inspection details..."></textarea>
+                </div>
+
+                {/* Error Display */}
+                {error && (
+                    <div className="p-3 bg-red-100 text-red-700 rounded text-sm">
+                        {typeof error === 'object' ? Object.entries(error).map(([key, val]) => `${key}: ${val}`).join(', ') : error}
+                    </div>
+                )}
+
+                <button 
+                    type="submit" 
+                    disabled={loading}
+                    className="w-full bg-blue-600 text-white font-bold py-3 rounded hover:bg-blue-700 transition-colors disabled:bg-gray-400"
+                >
+                    {loading ? 'Processing...' : 'Submit Verification Record'}
+                </button>
+            </form>
         </div>
-      </div>
-    </div>
-  );
+    );
 };
 
-export default Verification;
+export default ProductVerification;

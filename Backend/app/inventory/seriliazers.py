@@ -1,6 +1,33 @@
-from rest_framework import serializers
-from .models import Product,Category,IssueReport,Notification
 
+from rest_framework import serializers
+from .models import ( Product,Category,IssueReport,Notification,
+    FoodVerification, FurnitureVerification, 
+    ElectronicsVerification, StationeryVerification
+)
+
+# 1. Food Serializer
+class FoodVerificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FoodVerification
+        fields = '__all__'
+
+# 2. Furniture Serializer
+class FurnitureVerificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FurnitureVerification
+        fields = '__all__'
+
+# 3. Electronics Serializer
+class ElectronicsVerificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ElectronicsVerification
+        fields = '__all__'
+
+# 4. Stationery Serializer
+class StationeryVerificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StationeryVerification
+        fields = '__all__'
 class ProductSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source='department.name', read_only=True)
     is_urgent = serializers.BooleanField(source='is_low_stock', read_only=True)

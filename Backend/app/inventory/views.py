@@ -4,9 +4,10 @@ from .models import Product,IssueReport,Notification, StockLog
 from rest_framework.response import Response
 from rest_framework import status
 from app.accounts.permissions import IsManager,IsStaffFromDepartment,IsSuperAdmin
-from .seriliazers import ProductSerializer,CategorySerializer,NotificationSerializer,IssueReportserializer
+from .seriliazers import(  FoodVerificationSerializer, ProductSerializer,CategorySerializer,NotificationSerializer,IssueReportserializer,
+                         FurnitureVerificationSerializer, ElectronicsVerificationSerializer, StationeryVerificationSerializer)
 from app.accounts.models import  SystemLog
-
+from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import F
 from django.db import transaction
@@ -152,6 +153,42 @@ class Productview(APIView):
         except Product.DoesNotExist:
             return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
 
+
+
+class VerificationViewSet(viewsets.ModelViewSet):
+    """
+    A single ViewSet that handles all types of department verifications.
+    """
+    
+    def get_serializer_class(self):
+        # We determine the serializer based on the product's department
+        product_id = self.request.data.get('product')
+        if not product_id:
+            return FoodVerificationSerializer # Default fallback
+
+        product = Product.objects.get(id=product_id)
+        dept_name = product.department.name.lower()
+
+        if 'food' in dept_name:
+            return FoodVerificationSerializer
+        elif 'furniture' in dept_name:
+            return FurnitureVerificationSerializer
+        elif 'electronics' in dept_name:
+            return ElectronicsVerificationSerializer
+        elif 'stationery' in dept_name or 'office' in dept_name:
+            return StationeryVerificationSerializer
+        
+        return FoodVerificationSerializer
+
+    def perform_create(self, serializer):
+        # Logic: If verification fails (is_passed=False), 
+        # automatically update the product status to DAMAGED.
+        instance = serializer.save(verified_by=self.request.user)
+        
+        if not instance.is_passed:
+            product = instance.product
+            product.status = 'DAMAGED'
+            product.save()
 class IssueReportCreateView(generics.CreateAPIView):
     queryset = IssueReport.objects.all()
     serializer_class = IssueReportserializer

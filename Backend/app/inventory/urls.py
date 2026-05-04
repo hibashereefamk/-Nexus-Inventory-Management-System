@@ -1,6 +1,9 @@
 from django.urls import path
-from .views import (Productview,IssueReportCreateView,ManagerIssueListView,NotificationListView,ManagerEscalateIssueView,DepartmentStaffListView)
+from .views import (Productview,IssueReportCreateView,ManagerIssueListView,NotificationListView,ManagerEscalateIssueView,DepartmentStaffListView, VerificationViewSet)
+from rest_framework.routers import DefaultRouter
 
+router = DefaultRouter()
+router.register(r'verify-products', VerificationViewSet, basename='verify-products')
 
 urlpatterns = [
     path('products/',Productview.as_view(),name='product_viwe'),

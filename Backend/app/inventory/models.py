@@ -1,5 +1,5 @@
 from django.db import models
-from app.accounts.models import User, SystemLog, Department
+from app.accounts.models import User, SystemLog,Department
 from app.requests.models import ApprovalRequest
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -42,33 +42,25 @@ class Product(models.Model):
     sku = models.CharField(max_length=50, unique=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='IN_STOCK')
 
-    # Department Specific Fields
+    # Essential Department Fields (Keep these for quick filtering/reporting)
     expiry_date = models.DateField(null=True, blank=True)
-    warranty_expiry = models.DateField(null=True, blank=True)
-    damage_notes = models.TextField(null=True, blank=True)
-    reorder_level = models.IntegerField(null=True, blank=True)
-    # Management & Shipping
-    assigned_staff = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='assigned_products')
-    manager_deadline = models.DateField(null=True, blank=True)
-    total_stock = models.IntegerField(default=0)
-    min_stock_level = models.IntegerField(default=5)
-    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='LOW')
-    assigned_at = models.DateTimeField(null=True, blank=True)
-    shipped_date = models.DateTimeField(null=True, blank=True)
-    quantity_to_ship = models.PositiveIntegerField(default=1)
-    is_overdue = models.BooleanField(default=False)
-    is_damaged = models.BooleanField(default=False)
-    warranty_expiry = models.DateField(null=True, blank=True)
-    bin_location = models.CharField(
-        max_length=20,default="AISLE-1-A",
-        help_text="Specific warehouse shelf/bin location (e.g., Aisle 4, Shelf B1)."
-    )
-    tracking_number = models.CharField(max_length=100, null=True, blank=True)
-
-    # FEATURE: Food Department Expiry Management (FEFO)
+    warranty_expiry = models.DateField(null=True, blank=True) # Defined only once
     batch_number = models.CharField(max_length=50, null=True, blank=True)
     
+    # Stock Management
+    total_stock = models.IntegerField(default=0)
+    min_stock_level = models.IntegerField(default=5)
+    reorder_level = models.IntegerField(null=True, blank=True)
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='LOW')
 
+    # Logistics
+    bin_location = models.CharField(max_length=20, default="AISLE-1-A")
+    manager_deadline = models.DateField(null=True, blank=True)
+    # 1. class Meta must only contain Django options
+    class Meta:
+        ordering = ['-id']
+
+    # 2. Methods must be indented at the SAME level as class Meta, NOT inside it
     @property
     def is_low_stock(self):
         return self.total_stock <= self.min_stock_level
@@ -80,36 +72,24 @@ class Product(models.Model):
 
         dept = self.department.name.lower()
 
-        # 1. Electronics
         if "electronics" in dept and not self.warranty_expiry:
             raise ValidationError({"warranty_expiry": "Electronics REQUIRE a warranty expiry date."})
 
-        # 2. Furniture
-        elif "furniture" in dept:
-            if self.status == 'FLAGGED' and not self.damage_notes:
-                raise ValidationError({"damage_notes": "Please describe the issue for the manager."})
-
-        # 3. Food (The 10-day logic)
         elif "food" in dept:
             if not self.expiry_date:
                 raise ValidationError({"expiry_date": "Food items REQUIRE an expiry date."})
             
-            # Check if manager set a deadline too close to expiry
             if self.expiry_date and self.manager_deadline:
                 safe_ship_limit = self.expiry_date - timedelta(days=10)
                 if self.manager_deadline > safe_ship_limit:
                     raise ValidationError({
-                        "manager_deadline": f"Deadline must be before {safe_ship_limit} (10 days before expiry)."
+                        "manager_deadline": f"Deadline must be before {safe_ship_limit}."
                     })
-            class Meta:
-                ordering = ['-id']
 
-        # 4. Office
         elif "office" in dept and self.reorder_level is None:
-             raise ValidationError({"reorder_level": "Set a minimum stock level for stationery."})
+            raise ValidationError({"reorder_level": "Set a minimum stock level for stationery."})
 
     def save(self, *args, **kwargs):
-        # Auto-set priority based on expiry
         if self.expiry_date:
             today = timezone.now().date()
             days_until = (self.expiry_date - today).days
@@ -118,10 +98,11 @@ class Product(models.Model):
             elif days_until <= 30:
                 self.priority = 'HIGH'
 
+        self.update_inventory_status() # Auto-update status before saving
         self.full_clean() 
         super().save(*args, **kwargs)
+
     def update_inventory_status(self):
-        """Automatically updates status based on current stock levels."""
         if self.total_stock <= 0:
             self.status = 'OUT_OF_STOCK'
         elif self.status == 'OUT_OF_STOCK' and self.total_stock > 0:
@@ -146,7 +127,7 @@ def log_inventory_activity(sender, instance, created, **kwargs):
         action_msg = f"Product Data Updated: {instance.name}"
     
     # User is None here because signals don't natively track the 'request' user
-    SystemLog.log_event(user=None, action=action_msg)
+    SystemLog.log_event(user=None, action=action_msg) # Same product name can exist in different departments
 class Notification(models.Model):
     TYPES = [('LOW_STOCK', 'Low Stock'), ('DAMAGE', 'Damage'), ('EXPIRY', 'Expired'),('ISSUE', 'Issue Reported')]
 
@@ -198,6 +179,8 @@ class StockLog(models.Model):
         ('EXPIRED', 'Waste: Expired'),
         ('DAMAGE', 'Waste: Damaged'),
         ('SHIP', 'Shipped to Client'),
+        ('QC_FAIL', 'Quality Check Failed'),
+        ('QC_PASS', 'Quality Check Passed'), 
     ]
 
     product = models.ForeignKey('Product', on_delete=models.CASCADE, related_name='stock_history')
@@ -218,3 +201,37 @@ class StockLog(models.Model):
 
     def __str__(self):
         return f"{self.product.name} | {self.action_type} | {self.quantity_changed}"
+    
+
+class BaseVerification(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="%(class)s_records")
+    verified_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    is_passed = models.BooleanField(default=True)
+    comments = models.TextField(blank=True, null=True)
+
+    class Meta:
+        abstract = True
+class FoodVerification(BaseVerification):
+    # Already has batch_number in Product, but better to track it here per shipment
+    batch_lot = models.CharField(max_length=100)
+    temp_chain_ok = models.BooleanField(default=True) # Temperature check
+    packaging_sealed = models.BooleanField(default=True) # No leaks
+    fssai_verified = models.BooleanField(default=True) # Regulatory compliance
+
+class FurnitureVerification(BaseVerification):
+    structural_ok = models.BooleanField(default=True) # Integrity check
+    finish_no_scratches = models.BooleanField(default=True) # Surface check
+    parts_complete = models.BooleanField(default=True) # Assembly check (screws/tools)
+
+class ElectronicsVerification(BaseVerification):
+    unique_serial_number = models.CharField(max_length=100) # Linking S/N to invoice
+    boot_test_passed = models.BooleanField(default=False) # Dead on Arrival test
+    ports_physical_ok = models.BooleanField(default=True) # USB/Charging check
+    firmware_version = models.CharField(max_length=50, blank=True)
+
+class StationeryVerification(BaseVerification):
+    quantity_reconciled = models.BooleanField(default=True) # Pack count check
+    ink_lead_test_passed = models.BooleanField(default=True) # Spot test
+    paper_not_damaged = models.BooleanField(default=True) # Moisture/Yellowing check
+
