@@ -1,9 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import axios from 'axios'
-import { 
-  FiLayout, FiBox, FiClipboard, FiGlobe, FiSettings, 
-  FiSearch, FiFilter, FiBell, FiUser 
-} from 'react-icons/fi'
+import { FiSearch, FiFilter } from 'react-icons/fi'
 import AdvancedAssignModal from './AdvancedAssignModal'
 
 const API = 'http://127.0.0.1:8000'
@@ -13,29 +10,46 @@ const getAuthHeaders = () => {
   return { headers: { Authorization: `Bearer ${token}` } }
 }
 
-
-
 function ManagerTasksView() {
   const [tasks, setTasks] = useState([])
   const [staffList, setStaffList] = useState([])
   const [selectedTask, setSelectedTask] = useState(null)
   const [expandedOrder, setExpandedOrder] = useState(null)
+  const [activeFilter, setActiveFilter] = useState("ALL")
+  const [loading, setLoading] = useState(false)
 
   const fetchTasks = async () => {
     try {
+      setLoading(true)
       const res = await axios.get(`${API}/api/orders/manager/assignments/`, getAuthHeaders())
-      setTasks(res.data)
+      const data = Array.isArray(res.data) ? res.data : res.data.results || []
+      setTasks(data)
     } catch (err) {
       console.error("Error fetching tasks", err)
+    } finally {
+      setLoading(false)
     }
   }
 
   const fetchStaff = async () => {
     try {
       const res = await axios.get(`${API}/api/orders/manager/fulfillment-data/`, getAuthHeaders())
-      setStaffList(res.data.staff)
+      setStaffList(res.data.staff || [])
     } catch (err) {
       console.error("Error fetching staff", err)
+    }
+  }
+
+  const updateStatus = async (id, status) => {
+    try {
+      await axios.patch(
+        `${API}/api/orders/manager/update-status/${id}/`,
+        { status },
+        getAuthHeaders()
+      )
+      fetchTasks()
+    } catch (err) {
+      console.error("Update failed", err)
     }
   }
 
@@ -44,184 +58,190 @@ function ManagerTasksView() {
     fetchStaff()
   }, [])
 
+  const filteredTasks = tasks.filter(task => {
+  switch (activeFilter) {
+    case "ASSIGNED":
+      return task.staff
+
+    case "NOT_ASSIGNED":   // ✅ NEW
+      return !task.staff
+
+    case "SHIP_REQUEST":
+      return task.status === "APPROVAL_REQUESTED"
+
+    case "COMPLETED":
+      return task.status === "SHIPPED"
+
+    default:
+      return true
+  }
+})
+
+  const FilterTab = ({ label, active, onClick }) => (
+    <button
+      onClick={onClick}
+      className={`px-4 py-2 rounded-xl text-xs font-bold ${
+        active
+          ? "bg-indigo-600 text-white"
+          : "bg-white border text-gray-500 hover:bg-gray-100"
+      }`}
+    >
+      {label}
+    </button>
+  )
+
+  if (loading) {
+    return <div className="p-10 text-center text-gray-500">Loading tasks...</div>
+  }
+
   return (
     <div className="bg-gray-50 min-h-screen p-6">
 
-  {/* HEADER */}
-  <div className="flex justify-between items-center mb-6 border-b pb-3">
-    <h1 className="text-2xl font-bold text-gray-800">
-      Manager Assignment Terminal
-    </h1>
-  </div>
-
-  {/* STATS */}
-  <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-    <StatCard title="Total Orders" value={tasks.length} />
-    <StatCard title="Pending" value={tasks.filter(t => t.status === 'PENDING').length} />
-    <StatCard title="In Progress" value={tasks.filter(t => t.status === 'PACKING').length} />
-    <StatCard title="Completed" value={tasks.filter(t => t.status === 'PACKED').length} />
-  </div>
-
-  {/* TABLE */}
-  <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-
-    {/* HEADER */}
-    <div className="flex justify-between items-center p-4 border-b bg-gray-50">
-      <h2 className="text-lg font-semibold text-gray-700">
-        Task Registry
-      </h2>
-      <div className="flex gap-3 text-gray-400">
-        <FiFilter className="cursor-pointer hover:text-gray-600" />
-        <FiSearch className="cursor-pointer hover:text-gray-600" />
+      {/* FILTERS */}
+      <div className="flex gap-3 mb-6 flex-wrap">
+        <FilterTab label={`All (${tasks.length})`} active={activeFilter==="ALL"} onClick={()=>setActiveFilter("ALL")} />
+        <FilterTab label={`Unassigned (${tasks.filter(t => !t.staff).length})`} active={activeFilter === "NOT_ASSIGNED"} onClick={() => setActiveFilter("NOT_ASSIGNED")} />
+        <FilterTab label={`Assigned (${tasks.filter(t=>t.staff).length})`} active={activeFilter==="ASSIGNED"} onClick={()=>setActiveFilter("ASSIGNED")} />
+        <FilterTab label={`Ship Requests (${tasks.filter(t=>t.status==="APPROVAL_REQUESTED").length})`} active={activeFilter==="SHIP_REQUEST"} onClick={()=>setActiveFilter("SHIP_REQUEST")} />
+        <FilterTab label={`Completed (${tasks.filter(t=>t.status==="SHIPPED").length})`} active={activeFilter==="COMPLETED"} onClick={()=>setActiveFilter("COMPLETED")} />
       </div>
-    </div>
 
-    <table className="w-full text-sm">
-      <thead className="bg-gray-100 text-gray-500 uppercase text-xs">
-        <tr>
-          <th className="p-4 text-left">Order</th>
-          <th className="p-4 text-left">Department</th>
-          <th className="p-4 text-left">Priority</th>
-          <th className="p-4 text-left">Staff</th>
-          <th className="p-4 text-left">Status</th>
-          <th className="p-4 text-right">Action</th>
-        </tr>
-      </thead>
+      {/* TABLE */}
+      <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-100 text-xs uppercase">
+            <tr>
+              <th className="p-4 text-left">Order</th>
+              <th className="p-4">Dept</th>
+              <th className="p-4">Items</th>
+              <th className="p-4">Staff</th>
+              <th className="p-4">Status</th>
+              <th className="p-4 text-right">Action</th>
+            </tr>
+          </thead>
 
-      <tbody className="divide-y">
-  {tasks.map(task => (
-    <React.Fragment key={task.order_number}>
+          <tbody>
+            {filteredTasks.length === 0 && (
+              <tr>
+                <td colSpan="6" className="p-6 text-center text-gray-400">
+                  No tasks found
+                </td>
+              </tr>
+            )}
 
-      {/* MAIN ROW */}
-      <tr
-        onClick={() =>
-          setExpandedOrder(
-            expandedOrder === task.order_number ? null : task.order_number
-          )
-        }
-        className="hover:bg-gray-50 transition cursor-pointer"
-      >
-        {/* ORDER */}
-        <td className="p-4 font-mono text-indigo-600 font-semibold">
-          {task.order_number}
-        </td>
+            {filteredTasks.map(task => (
+              <React.Fragment key={task.id}>
 
-        {/* DEPARTMENT */}
-        <td className="p-4 text-gray-700">
-          {task.department}
-        </td>
+                <tr
+                  onClick={() =>
+                    setExpandedOrder(expandedOrder === task.id ? null : task.id)
+                  }
+                  className="hover:bg-gray-50 cursor-pointer"
+                >
+                  <td className="p-4 font-mono text-indigo-600">{task.order_number}</td>
+                  <td className="p-4">{task.department}</td>
+                  <td className="p-4">{task.products?.length}</td>
 
-        {/* PRODUCTS SUMMARY */}
-        <td className="p-4 text-gray-500 text-sm">
-          {task.products?.length} items
-        </td>
+                  <td className="p-4">
+                    {task.staff || <span className="text-gray-400">Unassigned</span>}
+                  </td>
 
-        {/* STAFF */}
-        <td className="p-4">
-          {task.staff ? (
-            <span className="font-medium text-gray-800">
-              {task.staff}
-            </span>
-          ) : (
-            <span className="text-gray-400 italic">
-              Unassigned
-            </span>
-          )}
-        </td>
+                  <td className="p-4">
+                    <StatusBadge status={task.status} />
+                  </td>
 
-        {/* STATUS */}
-        <td className="p-4">
-          <StatusBadge status={task.status} />
-        </td>
+                  <td className="p-4 text-right space-x-2">
 
-        {/* ACTION */}
-        <td className="p-4 text-right">
-          <button
-            onClick={(e) => {
-              e.stopPropagation() // prevent row click
-              setSelectedTask(task)
-            }}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded-md text-xs font-semibold"
-          >
-            Assign
-          </button>
-        </td>
-      </tr>
+                    {/* ASSIGN / REASSIGN */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setSelectedTask(task)
+                      }}
+                      className="bg-indigo-600 text-white px-3 py-1 rounded text-xs"
+                    >
+                      {task.staff ? "Reassign" : "Assign"}
+                    </button>
 
-      {/* EXPANDED ROW */}
-      {expandedOrder === task.order_number && (
-        <tr className="bg-gray-50">
-          <td colSpan="6" className="p-4">
+                    {/* APPROVAL */}
+                    {task.status === "APPROVAL_REQUESTED" && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          updateStatus(task.id, "SHIPPED")
+                        }}
+                        className="bg-yellow-500 text-white px-3 py-1 rounded text-xs"
+                      >
+                        Approve
+                      </button>
+                    )}
 
-            <div className="bg-white border rounded-lg p-4 shadow-sm">
-              <h4 className="text-sm font-semibold text-gray-600 mb-2">
-                Products
-              </h4>
+                    {/* DISPATCH */}
+                    {task.status === "PACKED" && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          updateStatus(task.id, "SHIPPED")
+                        }}
+                        className="bg-green-600 text-white px-3 py-1 rounded text-xs"
+                      >
+                        Dispatch
+                      </button>
+                    )}
 
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {task.products.map((p, i) => (
-                  <div
-                    key={i}
-                    className="flex justify-between bg-gray-100 px-3 py-2 rounded"
-                  >
-                    <span className="text-gray-700">{p.name}</span>
-                    <span className="text-gray-500 text-sm">
-                      x{p.quantity}
-                    </span>
-                  </div>
-                ))}
-              </div>
+                  </td>
+                </tr>
 
-            </div>
+                {/* EXPAND */}
+                {expandedOrder === task.id && (
+                  <tr className="bg-gray-50">
+                    <td colSpan="6" className="p-4">
+                      <div className="grid grid-cols-2 gap-3">
+                        {task.products?.map((p, i) => (
+                          <div key={i} className="flex justify-between bg-white p-2 border rounded">
+                            <span>{p.name}</span>
+                            <span>x{p.quantity}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                )}
 
-          </td>
-        </tr>
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* MODAL */}
+      {selectedTask && (
+        <AdvancedAssignModal
+          selectedTask={selectedTask}
+          staffList={staffList}
+          onClose={() => setSelectedTask(null)}
+          onRefresh={fetchTasks}
+        />
       )}
 
-    </React.Fragment>
-  ))}
-</tbody>
-</table>
-  </div>
-
-  {/* MODAL */}
-  {selectedTask && (
-    <AdvancedAssignModal
-      selectedTask={selectedTask}
-      staffList={staffList}
-      onClose={() => setSelectedTask(null)}
-      onRefresh={() => {
-        fetchTasks()
-        fetchStaff()
-      }}
-    />
-  )}
-</div>
-)
+    </div>
+  )
 }
-const StatCard = ({ title, value }) => (
-  <div className="bg-white p-5 rounded-xl border shadow-sm">
-    <p className="text-xs font-semibold text-gray-500 uppercase">
-      {title}
-    </p>
-    <p className="text-2xl font-bold text-gray-800 mt-1">
-      {value}
-    </p>
-  </div>
-)
+
 const StatusBadge = ({ status }) => {
   const styles = {
     PENDING: "bg-yellow-100 text-yellow-700",
     PACKING: "bg-blue-100 text-blue-700",
     PACKED: "bg-green-100 text-green-700",
+    APPROVAL_REQUESTED: "bg-purple-100 text-purple-700",
     SHIPPED: "bg-gray-200 text-gray-700"
   }
 
   return (
-    <span className={`px-2 py-1 text-xs font-semibold rounded ${styles[status]}`}>
+    <span className={`px-2 py-1 text-xs rounded ${styles[status]}`}>
       {status}
     </span>
   )
 }
 
-export default ManagerTasksView;
+export default ManagerTasksView

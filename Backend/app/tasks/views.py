@@ -296,6 +296,22 @@ class ManagerStaffFulfillmentView(APIView):
             "staff": UserWorkloadSerializer(staff_list, many=True).data
         })
     
+class ManagerApproveOrderView(generics.UpdateAPIView):
+    queryset = OrderAssignment.objects.all()
+    serializer_class = UpdateStatusSerializer
+    permission_classes = [IsAuthenticated]
+
+    def perform_update(self, serializer):
+        instance = serializer.save(status='APPROVED')
+
+        # Notify delivery staff
+        Notification.objects.create(
+            title="Order Approved",
+            message=f"Order {instance.order.order_number} is approved for shipping",
+            user=instance.staff,
+            notification_type='READY_TO_SHIP'
+        )
+    
 class ManagerDashboardStats(APIView):
     permission_classes = [IsAuthenticated,IsManager]
 
@@ -364,20 +380,21 @@ class StaffUpdateTaskStatusView(generics.UpdateAPIView):
         return OrderAssignment.objects.filter(staff=self.request.user)
 
     def perform_update(self, serializer):
-        # 1. Get the new status from the request data
+        instance = self.get_object()
         new_status = self.request.data.get("status")
-        
-        # 2. Save the instance with the new status
+
+        if new_status == 'SHIPPED' and instance.status != 'APPROVED':
+            raise ValidationError("Order must be approved before shipping")
+
         instance = serializer.save(status=new_status)
-        
-        # 3. Trigger notification ONLY if it was marked as SHIPPED
+
         if new_status == 'SHIPPED':
             Notification.objects.create(
-                title="Shipment Complete",
-                message=f"Order {instance.order_number} has been shipped by staff.",
-                user=instance.manager,  # Notify the manager who assigned it
-                notification_type='TASK_COMPLETE'
-            )
+            title="Shipment Complete",
+            message=f"Order {instance.order.order_number} shipped successfully",
+            user=instance.manager,
+            notification_type='TASK_COMPLETE'
+        )
 
 class StaffTaskDetailView(generics.RetrieveAPIView):
     serializer_class = OrderAssignmentSerializer
@@ -418,41 +435,43 @@ class StaffTaskInspectView(generics.UpdateAPIView):
         return OrderAssignment.objects.filter(staff=self.request.user)
 
     def perform_update(self, serializer):
-        # 1. Retrieve the instance being updated
         instance = self.get_object()
-        
-        # 2. Extract the 'inspections' dictionary from the request body
-        # React sends: { "inspections": { "1": { "is_inspected": true } } }
         inspections = self.request.data.get('inspections', {})
 
-        # 3. Update the OrderItems using the related_name 'items'
-        # This matches the 'items' field in your new Serializer
         order_items = OrderItem.objects.filter(order=instance.order)
-        
+
         for item in order_items:
             product_id = str(item.product.id)
+
             if product_id in inspections:
-                # Update the database field based on the frontend toggle
-                item.is_inspected = inspections[product_id].get('is_inspected', item.is_inspected)
+                item.is_inspected = inspections[product_id].get('is_inspected', False)
                 item.save()
 
-        # 4. Optional Logic: Auto-update status if all items are checked
+    # ✅ Check if all inspected
         all_done = not order_items.filter(is_inspected=False).exists()
+
         if all_done:
             instance.status = 'PACKED'
-            # No need to manually save instance here, serializer.save() below handles it
-        
-        # 5. Save the main OrderAssignment (triggers any signals/notifications)
-        serializer.save()
 
-    def patch(self, request, *args, **kwargs):
-        # We override patch to return a custom success message
-        response = super().patch(request, *args, **kwargs)
-        return Response({
-            "status": "success",
-            "message": "Inspection records synchronized.",
-            "updated_order": response.data
-        }, status=status.HTTP_200_OK)
+        # 🔥 STOCK REDUCTION LOGIC
+            for item in order_items:
+                product = item.product
+
+                if product.total_stock < item.quantity:
+                    raise ValidationError(f"Not enough stock for {product.name}")
+
+                product.total_stock -= item.quantity
+                product.save()
+
+        # ✅ Send request to manager
+            Notification.objects.create(
+            title="Order Ready for Approval",
+            message=f"Order {instance.order.order_number} is packed and waiting approval",
+            user=instance.manager,
+            notification_type='APPROVAL_REQUIRED'
+        )
+
+        serializer.save()
 
 
 class TaskStatsView(APIView):

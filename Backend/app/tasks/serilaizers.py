@@ -72,7 +72,7 @@ class OrderAssignmentSerializer(serializers.ModelSerializer):
         ]
 
     def get_items(self, obj):
-        items = OrderItem.objects.filter(order=obj.order)
+        items = OrderItem.objects.filter(order_number=obj.order)
         return OrderItemSerializer(items, many=True).data
 
 class AssignOrderSerializer(serializers.ModelSerializer):

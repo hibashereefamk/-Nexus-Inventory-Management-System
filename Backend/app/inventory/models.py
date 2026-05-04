@@ -19,11 +19,15 @@ class Category(models.Model):
 
 class Product(models.Model):
     STATUS_CHOICES = [
-        ('AVAILABLE', 'Available'),
-        ('FLAGGED', 'Issue Reported'),
-        ('PACKED', 'Packed'),
-        ('SHIPPED', 'Shipped'),
-    ]
+    ('IN_STOCK', 'In Stock'),
+    ('RESERVED', 'Reserved'),  # Sold but not yet out the door
+    ('OUT_OF_STOCK', 'Out of Stock'),
+    ('DAMAGED', 'Damaged/Quarantine'),
+    ('DISCONTINUED', 'Discontinued'),
+]
+
+# Add this to your Product class
+
     
     PRIORITY_CHOICES = [
         ('LOW', 'Low'), 
@@ -36,7 +40,7 @@ class Product(models.Model):
     category = models.ForeignKey(Category, on_delete=models.CASCADE)
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
     sku = models.CharField(max_length=50, unique=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='AVAILABLE')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='IN_STOCK')
 
     # Department Specific Fields
     expiry_date = models.DateField(null=True, blank=True)
@@ -59,10 +63,11 @@ class Product(models.Model):
         max_length=20,default="AISLE-1-A",
         help_text="Specific warehouse shelf/bin location (e.g., Aisle 4, Shelf B1)."
     )
+    tracking_number = models.CharField(max_length=100, null=True, blank=True)
 
     # FEATURE: Food Department Expiry Management (FEFO)
     batch_number = models.CharField(max_length=50, null=True, blank=True)
-    expiry_date = models.DateField(null=True, blank=True)
+    
 
     @property
     def is_low_stock(self):
@@ -96,6 +101,8 @@ class Product(models.Model):
                     raise ValidationError({
                         "manager_deadline": f"Deadline must be before {safe_ship_limit} (10 days before expiry)."
                     })
+            class Meta:
+                ordering = ['-id']
 
         # 4. Office
         elif "office" in dept and self.reorder_level is None:
@@ -113,6 +120,12 @@ class Product(models.Model):
 
         self.full_clean() 
         super().save(*args, **kwargs)
+    def update_inventory_status(self):
+        """Automatically updates status based on current stock levels."""
+        if self.total_stock <= 0:
+            self.status = 'OUT_OF_STOCK'
+        elif self.status == 'OUT_OF_STOCK' and self.total_stock > 0:
+            self.status = 'IN_STOCK'
 
     @classmethod
     def get_expiring_soon(cls):
@@ -120,7 +133,7 @@ class Product(models.Model):
         return cls.objects.filter(
             expiry_date__lte=warning_window,
             expiry_date__gte=timezone.now().date(),
-            status='AVAILABLE'
+            status='IN_STOCK'
         )
 
     def __str__(self):

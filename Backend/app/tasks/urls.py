@@ -2,7 +2,7 @@ from django.urls import path
 
 
 from .views import (
-    AdminOrderListCreateView, AdminOrderConfirmView,
+    AdminOrderListCreateView, AdminOrderConfirmView, ManagerApproveOrderView,
     ManagerAssignmentListView, ManagerAssignStaffView,
     ManagerStaffFulfillmentView, ManagerDashboardStats,
     StaffDashboardTasksView, StaffUpdateTaskStatusView,
@@ -22,6 +22,7 @@ urlpatterns = [
     path('manager/assignments/<int:pk>/assign-staff/', ManagerAssignStaffView.as_view(), name='manager-assign-staff'),
     path('manager/fulfillment-data/', ManagerStaffFulfillmentView.as_view(), name='manager-fulfillment-data'),
     path('manager/departments/', DepartmentListView.as_view(), name='department-list'),
+    path('manager/app-shipping/', ManagerApproveOrderView.as_view(), name='manager-app-shipping'),
 
     # --- STAFF ENDPOINTS ---
     path('staff/tasks/', StaffDashboardTasksView.as_view(), name='staff-tasks'),
