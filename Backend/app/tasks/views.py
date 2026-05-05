@@ -381,96 +381,76 @@ class StaffUpdateTaskStatusView(generics.UpdateAPIView):
 
     def perform_update(self, serializer):
         instance = self.get_object()
-        new_status = self.request.data.get("status")
-
-        if new_status == 'SHIPPED' and instance.status != 'APPROVED':
-            raise ValidationError("Order must be approved before shipping")
-
-        instance = serializer.save(status=new_status)
-
-        if new_status == 'SHIPPED':
-            Notification.objects.create(
-            title="Shipment Complete",
-            message=f"Order {instance.order.order_number} shipped successfully",
-            user=instance.manager,
-            notification_type='TASK_COMPLETE'
-        )
-
-class StaffTaskDetailView(generics.RetrieveAPIView):
-    serializer_class = OrderAssignmentSerializer
-    permission_classes = [permissions.IsAuthenticated, IsStaffFromDepartment]
-
-    def get_queryset(self):
-        return OrderAssignment.objects.filter(staff=self.request.user)  
-    
-class StaffCreateIssueView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request):
-        product_id = request.data.get("product")
-        description = request.data.get("description")
-        issue_type = request.data.get("type")
-
-        product = get_object_or_404(Product, id=product_id)
-
-        IssueReport.objects.create(
-            product=product,
-            reported_by=request.user,
-            department=request.user.department,
-            type=issue_type,
-            description=description,
-            urgency="HIGH" if issue_type == "DAMAGE" else "MEDIUM"
-        )
-
-        return Response({
-            "message": "Issue reported successfully"
-        })
-
-class StaffTaskInspectView(generics.UpdateAPIView):
-    serializer_class = OrderAssignmentSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        # Only allow staff to see tasks assigned to them
-        return OrderAssignment.objects.filter(staff=self.request.user)
-
-    def perform_update(self, serializer):
-        instance = self.get_object()
+        # inspections contains: {"4": {"is_inspected": true}, "5": {"is_inspected": false}}
         inspections = self.request.data.get('inspections', {})
+        comments = self.request.data.get('comments', "No specific comments provided.")
 
-        order_items = OrderItem.objects.filter(order=instance.order)
+        if not instance.order:
+            raise ValidationError("Assignment is missing a valid order reference.")
 
+        # 1. Fetch all items belonging to this order
+        order_items = OrderItem.objects.filter(order_number=instance.order.order_number)
+
+        any_item_failed = False
+        
         for item in order_items:
-            product_id = str(item.product.id)
-
-            if product_id in inspections:
-                item.is_inspected = inspections[product_id].get('is_inspected', False)
+            p_id = str(item.product.id)
+            if p_id in inspections:
+                is_passed = inspections[p_id].get('is_inspected', False)
+                item.is_inspected = is_passed
+                
+                # --- ISSUE REPORT LOGIC ---
+                # If an item fails, create an official Issue Report automatically
+                if not is_passed:
+                    any_item_failed = True
+                    item.status = 'CANCELLED' # Prevent shipping this item
+                    
+                    IssueReport.objects.create(
+                        product=item.product,
+                        reported_by=self.request.user,
+                        department=instance.department,
+                        type='DAMAGE',
+                        description=f"Verification Failed during Packing: {comments}",
+                        urgency='HIGH'
+                    )
                 item.save()
 
-    # ✅ Check if all inspected
-        all_done = not order_items.filter(is_inspected=False).exists()
-
-        if all_done:
+        # 2. Determine Final Assignment Status
+        if any_item_failed:
+            instance.status = 'DAMAGED'
+            
+            # Notify Manager about the Damage
+            Notification.objects.create(
+                title="URGENT: Product Damaged",
+                message=f"Order {instance.order.order_number} has failed verification and is marked as DAMAGED.",
+                department=instance.department,
+                user=instance.manager,
+                notification_type='ISSUE',
+                is_emergency=True
+            )
+        else:
             instance.status = 'PACKED'
-
-        # 🔥 STOCK REDUCTION LOGIC
+            
+            # --- STOCK REDUCTION LOGIC (Only if everything passed) ---
             for item in order_items:
                 product = item.product
+                if product.total_stock >= item.quantity:
+                    product.total_stock -= item.quantity
+                    product.save()
+                else:
+                    raise ValidationError(f"Insufficient stock for {product.name} at final verification.")
 
-                if product.total_stock < item.quantity:
-                    raise ValidationError(f"Not enough stock for {product.name}")
-
-                product.total_stock -= item.quantity
-                product.save()
-
-        # ✅ Send request to manager
+            # Notify Manager that Order is ready for final Approval
             Notification.objects.create(
-            title="Order Ready for Approval",
-            message=f"Order {instance.order.order_number} is packed and waiting approval",
-            user=instance.manager,
-            notification_type='APPROVAL_REQUIRED'
-        )
+                title="Order Ready for Approval",
+                message=f"Order {instance.order.order_number} is packed and waiting for your approval to ship.",
+                department=instance.department,
+                user=instance.manager,
+                notification_type='APPROVAL_REQUIRED'
+            )
 
+        # 3. Finalize and Save the Assignment
+        instance.save()
         serializer.save()
 
 

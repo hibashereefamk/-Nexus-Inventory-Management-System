@@ -56,12 +56,12 @@ class OrderItemSerializer(serializers.ModelSerializer):
         model = OrderItem
         fields = ['id', 'product','status','target_department','rejection_reason', 'product_details', 'order_number','quantity', 'is_inspected']
 
-# 3. The main Serializer for the Dashboard
 class OrderAssignmentSerializer(serializers.ModelSerializer):
     items = serializers.SerializerMethodField()
     department_name = serializers.CharField(source='department.name', read_only=True)
     staff_username = serializers.CharField(source='staff.username', read_only=True)
-    order_number = serializers.CharField(source='order.order_number')
+    # Use instance.order.order_number
+    order_number = serializers.CharField(source='order.order_number', read_only=True)
 
     class Meta:
         model = OrderAssignment
@@ -72,9 +72,11 @@ class OrderAssignmentSerializer(serializers.ModelSerializer):
         ]
 
     def get_items(self, obj):
-        items = OrderItem.objects.filter(order_number=obj.order)
-        return OrderItemSerializer(items, many=True).data
-
+        if obj.order:
+            # Filter OrderItems by the order_number found in the linked OrderItem
+            items = OrderItem.objects.filter(order_number=obj.order.order_number)
+            return OrderItemSerializer(items, many=True).data
+        return []
 class AssignOrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderAssignment

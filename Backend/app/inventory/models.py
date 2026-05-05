@@ -212,6 +212,7 @@ class BaseVerification(models.Model):
 
     class Meta:
         abstract = True
+        
 class FoodVerification(BaseVerification):
     # Already has batch_number in Product, but better to track it here per shipment
     batch_lot = models.CharField(max_length=100)

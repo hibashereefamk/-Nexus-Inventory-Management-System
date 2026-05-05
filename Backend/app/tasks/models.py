@@ -18,6 +18,7 @@ class OrderItem(models.Model):
     ORDER_STATUS = [
         ('DRAFT', 'Draft'),
         ('CONFIRMED', 'Confirmed'),
+        ('VERIFIED','Verified'),
         ('CANCELLED', 'Cancelled'),
     ]
     status = models.CharField(max_length=10, choices=ORDER_STATUS, default='DRAFT')
@@ -49,7 +50,9 @@ class OrderAssignment(models.Model):
     STATUS_CHOICES = [
         ('PENDING', 'Pending Pickup'),
         ('PACKING', 'Packing In-Progress'),
+        ('DAMAGED', 'Marked as Damaged'),
         ('PACKED', 'Packed & Ready'),
+        ('APPROVED','Approved for Shipping'),
         ('SHIPPED', 'Shipped'),
     ]
     order=models.ForeignKey(OrderItem,on_delete=models.CASCADE,null=True, related_name='order_assignments')
