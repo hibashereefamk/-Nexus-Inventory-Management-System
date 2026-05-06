@@ -49,34 +49,31 @@ class OrderConfirmationSerializer(serializers.ModelSerializer):
             )
         return instance
 class OrderItemSerializer(serializers.ModelSerializer):
-    # This allows the frontend to see the FULL product info
     product_details = ProductDetailSerializer(source='product', read_only=True)
-    
+
     class Meta:
         model = OrderItem
-        fields = ['id', 'product','status','target_department','rejection_reason', 'product_details', 'order_number','quantity', 'is_inspected']
+        fields = [
+            'id','order_number','product',
+            'product_details','quantity','status',
+            'target_department', 'rejection_reason', 'created_at','updated_at',
+        ]
 
 class OrderAssignmentSerializer(serializers.ModelSerializer):
-    items = serializers.SerializerMethodField()
+    order_details = OrderItemSerializer(source='order', read_only=True)
+
     department_name = serializers.CharField(source='department.name', read_only=True)
     staff_username = serializers.CharField(source='staff.username', read_only=True)
-    # Use instance.order.order_number
     order_number = serializers.CharField(source='order.order_number', read_only=True)
 
     class Meta:
         model = OrderAssignment
         fields = [
-            'id', 'status', 'department', 'department_name',
-            'order', 'order_number', 'staff', 'staff_username',
-            'deadline_date', 'items', 'assigned_at'
+            'id','status','department','department_name','verification_status',
+            'priority','order','order_number','order_details','staff',
+            'staff_username','issue_status', 'is_cancelled','deadline_date',
+            'assigned_at', 'completed_at','manager','approval_status',
         ]
-
-    def get_items(self, obj):
-        if obj.order:
-            # Filter OrderItems by the order_number found in the linked OrderItem
-            items = OrderItem.objects.filter(order_number=obj.order.order_number)
-            return OrderItemSerializer(items, many=True).data
-        return []
 class AssignOrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderAssignment

@@ -58,7 +58,14 @@ const StaffTaskTerminal = () => {
         getAuthHeaders()
       );
 
-      const items = response.data.items || [];
+      const items = response.data.order_details
+  ? [{
+      id: response.data.order_details.id,
+      product_details: response.data.order_details.product_details,
+      quantity: response.data.order_details.quantity,
+      is_inspected: false, // default
+    }]
+  : [];
 
       if (items.length === 0) {
         toast.warn("No products found for this task.");
@@ -115,8 +122,8 @@ if (isSelectingProduct && activeVerificationTask) {
                     ← BACK TO TERMINAL
                 </button>
                 <div className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-black uppercase">
-                    Status: {task.status}
-                </div>
+                  {task.status} | {task.approval_status}
+                  </div>
             </div>
 
             <div className="max-w-6xl mx-auto space-y-6">
@@ -185,45 +192,48 @@ if (isSelectingProduct && activeVerificationTask) {
                                             </span>
                                         )}
                                     </td>
-                                    <td className="p-4 text-right">
-    {item.status === 'DAMAGED' ? (
-        /* If item is Damaged, show a red indicator button */
-        <button 
-            disabled
-            className="px-4 py-1.5 rounded-lg text-[10px] font-black uppercase bg-red-100 text-red-600 border border-red-200 cursor-not-allowed"
-        >
-            Issue Reported
-        </button>
-    ) : item.is_inspected ? (
-        /* If item is already verified */
-        <button 
-            disabled
-            className="px-4 py-1.5 rounded-lg text-[10px] font-black uppercase bg-emerald-50 text-emerald-600 border border-emerald-200 cursor-not-allowed"
-        >
-            Verified ✓
-        </button>
-    ) : (
-        /* Default Action Button */
-        <button
-            onClick={() => {
-                const selectedProduct = {
-                    ...item.product_details,
-                    order_item_id: item.id,
-                    task_id: task.id,
-                    department_name: task.department_name,
-                    order_number: task.order_number,
-                    staff_username: task.staff_username,
-                    product_name: item.product_details?.name,
-                    quantity: item.quantity,
-                };
-                setActiveVerificationTask({ ...task, current_product: selectedProduct });
-                setIsSelectingProduct(false);
-            }}
-            className="px-4 py-1.5 rounded-lg text-[10px] font-black uppercase bg-blue-600 text-white hover:bg-blue-700 active:scale-95 shadow-sm transition-all"
-        >
-            Verify Product
-        </button>
-    )}
+                                   <td className="p-4 text-right">
+  {item.issue_status === 'DAMAGED' ? (
+    <button 
+      disabled
+      className="px-4 py-1.5 rounded-lg text-[10px] font-black uppercase bg-red-100 text-red-600 border border-red-200 cursor-not-allowed"
+    >
+      Issue Reported
+    </button>
+  ) : item.is_inspected ? (
+    <button 
+      disabled
+      className="px-4 py-1.5 rounded-lg text-[10px] font-black uppercase bg-emerald-50 text-emerald-600 border border-emerald-200"
+    >
+      Verified ✓
+    </button>
+  ) : (
+    <button
+      onClick={() => {
+        const selectedProduct = {
+          ...item.product_details,
+          order_item_id: item.id,
+          task_id: task.id,
+          department_name: task.department_name,
+          order_number: task.order_number,
+          staff_username: task.staff_username,
+          product_name: item.product_details?.name,
+          quantity: item.quantity,
+        };
+
+        console.log("SELECTED PRODUCT:", selectedProduct);
+
+        setActiveVerificationTask({ 
+          ...task, 
+          current_product: selectedProduct 
+        });
+        setIsSelectingProduct(false);
+      }}
+      className="px-4 py-1.5 rounded-lg text-[10px] font-black uppercase bg-blue-600 text-white hover:bg-blue-700"
+    >
+      Verify Product
+    </button>
+  )}
 </td>
                                 </tr>
                             ))}
@@ -282,36 +292,124 @@ if (!isSelectingProduct && activeVerificationTask?.current_product) {
         <StatCard icon={<FiCheckCircle />} color="text-emerald-600 bg-emerald-50" label="Packed" value={stats.packed} />
       </div>
 
-      {/* TASK LIST */}
-      <div className="space-y-4">
-        {filteredTasks.length === 0 ? (
-          <div className="text-center p-10 bg-white rounded-xl border border-dashed border-slate-300">
-            <p className="text-slate-400">No active tasks assigned to you.</p>
-          </div>
-        ) : (
-          filteredTasks.map((taskItem) => (
-            <div key={taskItem.id} className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm flex justify-between items-center">
-              <div>
-                <span className="font-mono font-bold text-blue-700">#{taskItem.order_number}</span>
-                <h3 className="font-bold text-slate-900">{taskItem.department_name}</h3>
-                <span className="text-xs text-slate-400 uppercase font-bold">{taskItem.status}</span>
-              </div>
-              
-              <div className="flex gap-2">
-                {taskItem.status === "PENDING" && (
-                  <button onClick={() => updateStatus(taskItem.id, "PACKING")} className="px-4 py-2 bg-slate-900 text-white text-xs font-bold rounded-lg">START PACKING</button>
-                )}
-                {taskItem.status === "PACKING" && (
-                  <button onClick={() => handleOpenVerification(taskItem)} className="px-4 py-2 bg-yellow-500 text-white text-xs font-bold rounded-lg">VERIFY ITEMS</button>
-                )}
-                {taskItem.status === "PACKED" && (
-                  <button onClick={() => updateStatus(taskItem.id, "SHIPPED")} className="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg">SHIP ORDER</button>
-                )}
-              </div>
+     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+  <table className="w-full text-sm">
+    <thead className="bg-slate-50 border-b">
+      <tr>
+        <th className="p-4 text-left text-xs font-bold text-slate-500">Order</th>
+        <th className="p-4 text-left text-xs font-bold text-slate-500">Dedline Date</th>
+        <th className="p-4 text-center text-xs font-bold text-slate-500">Priority</th>
+        <th className="p-4 text-center text-xs font-bold text-slate-500">Status</th>
+        <th className="p-4 text-center text-xs font-bold text-slate-500">Progress</th>
+        <th className="p-4 text-right text-xs font-bold text-slate-500">Action</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      {filteredTasks.map(task => (
+        <tr key={task.id} className="border-b hover:bg-slate-50 transition">
+
+          {/* ORDER */}
+          <td className="p-4">
+            <p className="font-mono font-bold text-blue-700">
+              #{task.order_number}
+            </p>
+            <p className="text-xs text-slate-400">
+  {task.assigned_at?.split("T")[0]} {" "}
+  {task.assigned_at?.split("T")[1]?.split(".")[0]}
+</p>
+          </td>
+
+          {/* DEPARTMENT */}
+          <td className="p-4 font-semibold text-slate-700">
+            {task.deadline_date}
+          </td>
+
+          {/* PRIORITY */}
+          <td className="p-4 text-center">
+            <span className={`px-2 py-1 text-xs font-bold rounded
+              ${task.priority === "HIGH" && "bg-red-100 text-red-600"}
+              ${task.priority === "MED" && "bg-yellow-100 text-yellow-600"}
+              ${task.priority === "LOW" && "bg-green-100 text-green-600"}
+            `}>
+              {task.priority}
+            </span>
+          </td>
+
+          {/* STATUS */}
+          <td className="p-4 text-center">
+            <span className={`px-3 py-1 text-xs font-bold rounded-full
+              ${task.status === "PENDING" && "bg-gray-100 text-gray-600"}
+              ${task.status === "PACKING" && "bg-blue-100 text-blue-600"}
+              ${task.status === "PACKED" && "bg-purple-100 text-purple-600"}
+              ${task.status === "SHIPPED" && "bg-green-100 text-green-600"}
+            `}>
+              {task.status}
+            </span>
+
+            {task.status === "PACKED" && task.approval_status === "PENDING" && (
+              <p className="text-[10px] text-yellow-500 mt-1">
+                Waiting Approval
+              </p>
+            )}
+          </td>
+
+          {/* PROGRESS BAR */}
+          <td className="p-4">
+            <div className="w-full bg-slate-200 h-2 rounded-full">
+              <div
+                className={`h-2 rounded-full ${
+                  task.status === "PENDING" ? "w-[25%] bg-gray-400" :
+                  task.status === "PACKING" ? "w-[50%] bg-blue-500" :
+                  task.status === "PACKED" ? "w-[75%] bg-purple-500" :
+                  "w-full bg-green-500"
+                }`}
+              />
             </div>
-          ))
-        )}
-      </div>
+          </td>
+
+          {/* ACTION */}
+          <td className="p-4 text-right">
+            {task.status === "PENDING" && (
+              <button
+                onClick={() => updateStatus(task.id, "PACKING")}
+                className="px-4 py-1.5 bg-slate-900 text-white text-xs font-bold rounded"
+              >
+                Start
+              </button>
+            )}
+
+            {task.status === "PACKING" && (
+              <button
+                onClick={() => handleOpenVerification(task)}
+                className="px-4 py-1.5 bg-blue-600 text-white text-xs font-bold rounded"
+              >
+                Verify
+              </button>
+            )}
+
+            {task.status === "PACKED" && task.approval_status === "APPROVED" && (
+              <button
+                onClick={() => updateStatus(task.id, "SHIPPED")}
+                className="px-4 py-1.5 bg-green-600 text-white text-xs font-bold rounded"
+              >
+                Ship
+              </button>
+            )}
+
+            {task.status === "PACKED" && task.approval_status === "PENDING" && (
+              <span className="text-xs text-yellow-600 font-bold">
+                Waiting Approval
+              </span>
+            )}
+          </td>
+
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
+        
     </div>
   );
 };

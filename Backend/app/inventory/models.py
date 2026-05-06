@@ -134,7 +134,7 @@ class Notification(models.Model):
     title = models.CharField(max_length=100)
     message = models.TextField()
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
-
+    user =models.ForeignKey(User, on_delete=models.CASCADE,null=True, blank=True)
     notification_type = models.CharField(max_length=20, choices=TYPES ,null=True, blank=True)
     product = models.ForeignKey(Product, on_delete=models.CASCADE, null=True, blank=True)
     is_emergency = models.BooleanField(default=False)
@@ -156,7 +156,13 @@ class IssueReport(models.Model):
         choices=URGENCY_CHOICES, 
         default='MEDIUM'
     )
-    # The chain of command
+    assignment = models.ForeignKey(
+        'tasks.OrderAssignment', 
+        on_delete=models.CASCADE, 
+        related_name='issue_reports',
+        null=True, 
+        blank=True
+    )
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
     is_reviewed_by_manager = models.BooleanField(default=False)
     is_escalated_to_admin = models.BooleanField(default=False)
@@ -226,7 +232,7 @@ class FurnitureVerification(BaseVerification):
     parts_complete = models.BooleanField(default=True) # Assembly check (screws/tools)
 
 class ElectronicsVerification(BaseVerification):
-    unique_serial_number = models.CharField(max_length=100) # Linking S/N to invoice
+    unique_serial_number = models.CharField(max_length=100,null=True, blank=True) # Linking S/N to invoice
     boot_test_passed = models.BooleanField(default=False) # Dead on Arrival test
     ports_physical_ok = models.BooleanField(default=True) # USB/Charging check
     firmware_version = models.CharField(max_length=50, blank=True)

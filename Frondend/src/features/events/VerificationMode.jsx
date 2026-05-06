@@ -63,66 +63,62 @@ const ProductVerification = ({ product, onComplete, onBack }) => {
   };
 
  const handleSubmit = async (isDraft = false) => {
-  // 1. Mandatory Batch Check for ALL types (Professional ERP standard)
   if (!formData.batch_lot.trim()) {
-    toast.error("Batch/Lot Number is mandatory for tracking.");
+    toast.error("Batch/Lot Number is required");
     return;
   }
 
-  // 2. Mandatory Comments if Failed
   if (!formData.is_passed && !formData.comments.trim()) {
-    toast.error("Please describe the issue in the comments section.");
+    toast.error("Please describe failure reason");
     return;
   }
 
   setLoading(true);
+
   try {
     const token = localStorage.getItem("access_token");
-    if (!token) throw new Error("No authentication token found. Please login again.");
+    const config = { headers: { Authorization: `Bearer ${token}` } };
 
-    const config = {
-      headers: { Authorization: `Bearer ${token}` },
-    };
+    const pId = product.product_details?.id || product.id || product.product;
+    const taskId = product.task_id || product.assignment_id;
 
-    const pId = product.product_details?.id || product.id || product.order_item_id;
-    
-    // Prepare the payload strictly based on your category
-    const payload = {
+    await axios.post(`${API}/api/inventory/verify-products/`, {
       product: pId,
       is_passed: formData.is_passed,
       comments: formData.comments,
       batch_lot: formData.batch_lot,
-      active_type: activeType, // Helps backend routing
-      // Include category specific fields
-      ...(activeType === 'food' && { 
-          temp_chain_ok: formData.temp_chain_ok, 
-          packaging_sealed: formData.packaging_sealed, 
-          fssai_verified: formData.fssai_verified 
-      }),
-      ...(activeType === 'electronics' && { 
-          boot_test_passed: formData.boot_test_passed, 
-          ports_physical_ok: formData.ports_physical_ok,
-          firmware_version: formData.firmware_version 
-      }),
-      // ... add furniture and stationery similarly
-    };
+      active_type: activeType,
+    }, config);
 
-    // Step A: Save Verification
-    await axios.post(`${API}/api/inventory/verify-products/`, payload, config);
+    // ✅ Step 2: Trigger assignment workflow
+    if (!isDraft && taskId) {
+      const response = await axios.patch(
+        `${API}/api/orders/staff/tasks/${taskId}/inspect/`,
+        {
+         inspections: {
+  [pId]: { is_inspected: formData.is_passed }
+},
+          comments: formData.comments
+        },
+        config
+      );
+      print("INSPECTIONS:", inspections)
+print("PRODUCT ID:", p_id)
+print("RESULT:", inspections.get(p_id))
+      const { verification_status, approval_status, status } = response.data;
 
-    // Step B: Update Task Status
-    if (!isDraft && product.task_id) {
-      await axios.patch(`${API}/api/orders/staff/tasks/${product.task_id}/inspect/`, {
-        inspections: { [pId]: { is_inspected: true } }
-      }, config);
+if (verification_status === 'PASSED') {
+  toast.success(`✔ Verified → ${status} (Approval: ${approval_status})`);
+} else {
+  toast.error("❌ Verification failed → Issue sent to manager");
+}
     }
 
-    toast.success("Verification Recorded Successfully");
     if (onComplete) onComplete();
+
   } catch (err) {
-    console.error("Submission Error:", err.response?.data || err.message);
-    const backendMessage = err.response?.data?.detail || err.response?.data?.message || "Check console for details";
-    toast.error(`Submission Failed: ${backendMessage}`);
+    console.error(err);
+    toast.error("Something went wrong. Check stock or connection.");
   } finally {
     setLoading(false);
   }
@@ -215,7 +211,12 @@ const ProductVerification = ({ product, onComplete, onBack }) => {
                 <p className="text-sm text-slate-500">Auto-detected based on checklist results</p>
               </div>
               <div className={`px-6 py-3 rounded-full font-bold flex items-center gap-2 ${formData.is_passed ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                {formData.is_passed ? <><FiCheckCircle /> VERIFIED & READY</> : <><FiXCircle /> DAMAGED / ISSUE</>}
+                {formData.is_passed ? ( <><FiCheckCircle /> VERIFIED (Awaiting Approval)</>) : (<><FiXCircle /> FAILED (Issue Reported)</>)}
+                <p className="text-xs mt-1 text-slate-500">
+  {formData.is_passed 
+    ? "Manager will review and approve for shipping"
+    : "Issue report sent to manager for decision"}
+</p>
               </div>
             </div>
             
@@ -229,9 +230,16 @@ const ProductVerification = ({ product, onComplete, onBack }) => {
 
           <div className="flex justify-end gap-3 pt-6 border-t">
             <button onClick={onBack} className="px-6 py-2 border rounded-md font-bold text-sm hover:bg-slate-50">Cancel</button>
-            <button disabled={loading} onClick={() => handleSubmit(false)} className={`px-8 py-2 text-white rounded-md font-bold text-sm transition-colors ${formData.is_passed ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'}`}>
-              {loading ? "Processing..." : "Complete Verification"}
-            </button>
+            <button
+  disabled={loading}
+  onClick={() => handleSubmit(false)}
+  className={`px-8 py-2 text-white rounded-md font-bold text-sm ${
+    loading ? 'opacity-50 cursor-not-allowed' :
+    formData.is_passed ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'
+  }`}
+>
+  {loading ? "Processing..." : "Complete Verification"}
+</button>
           </div>
         </div>
       </div>

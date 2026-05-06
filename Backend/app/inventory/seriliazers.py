@@ -19,6 +19,7 @@ class FurnitureVerificationSerializer(serializers.ModelSerializer):
 
 # 3. Electronics Serializer
 class ElectronicsVerificationSerializer(serializers.ModelSerializer):
+    unique_serial_number = serializers.CharField(required=False, allow_blank=True)
     class Meta:
         model = ElectronicsVerification
         fields = '__all__'

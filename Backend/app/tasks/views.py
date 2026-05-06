@@ -1,7 +1,6 @@
 from collections import defaultdict
 from urllib import response
 import uuid
-
 from .serilaizers import OrderAssignmentSerializer,UpdateStatusSerializer,DepartmentManagerSerializer,ProductDetailSerializer
 from rest_framework import generics
 from app.accounts.permissions import IsManager,IsStaffFromDepartment
@@ -12,6 +11,9 @@ from app.inventory.models import Product, Notification,IssueReport
 from app.inventory.seriliazers import ProductSerializer
 from django.db.models import Q
 
+from rest_framework.exceptions import ValidationError
+from django.db import transaction
+
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAdminUser
@@ -20,7 +22,7 @@ from .models import OrderItem
 from .serilaizers import OrderConfirmationSerializer,OrderItemSerializer,AssignOrderSerializer,ManagerDashboardSerializer, UpdateStatusSerializer
 from app.accounts.models import User
 from app.accounts.serializers import UserWorkloadSerializer
-from django.db import models
+
 
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
@@ -302,14 +304,18 @@ class ManagerApproveOrderView(generics.UpdateAPIView):
     permission_classes = [IsAuthenticated]
 
     def perform_update(self, serializer):
-        instance = serializer.save(status='APPROVED')
+        assignment = self.get_object()
 
-        # Notify delivery staff
+        decision = self.request.data.get("decision")  # APPROVED / REJECTED
+
+        assignment.manager_decision(decision)
+
+        # Notify staff
         Notification.objects.create(
-            title="Order Approved",
-            message=f"Order {instance.order.order_number} is approved for shipping",
-            user=instance.staff,
-            notification_type='READY_TO_SHIP'
+            title="Manager Decision",
+            message=f"Order {assignment.order.order_number} {decision.lower()}",
+            user=assignment.staff,
+            notification_type='READY_TO_SHIP' if decision == 'APPROVED' else 'REJECTED'
         )
     
 class ManagerDashboardStats(APIView):
@@ -376,83 +382,129 @@ class StaffUpdateTaskStatusView(generics.UpdateAPIView):
     permission_classes = [permissions.IsAuthenticated, IsStaffFromDepartment]
 
     def get_queryset(self):
-        # Ensure staff can only update their own assigned tasks
         return OrderAssignment.objects.filter(staff=self.request.user)
 
     def perform_update(self, serializer):
-        instance = self.get_object()
-        # inspections contains: {"4": {"is_inspected": true}, "5": {"is_inspected": false}}
-        inspections = self.request.data.get('inspections', {})
-        comments = self.request.data.get('comments', "No specific comments provided.")
+        assignment = self.get_object()
+        new_status = self.request.data.get("status")
 
-        if not instance.order:
-            raise ValidationError("Assignment is missing a valid order reference.")
+    # ✅ Allow normal status updates
+        if new_status in ['PENDING', 'PICKING', 'PACKING', 'PACKED']:
+            assignment.status = new_status
+            assignment.save()
 
-        # 1. Fetch all items belonging to this order
-        order_items = OrderItem.objects.filter(order_number=instance.order.order_number)
+        elif new_status == 'SHIPPED':
+            if assignment.approval_status != 'APPROVED':
+                raise ValidationError("Manager approval required before shipping")
 
-        any_item_failed = False
-        
-        for item in order_items:
-            p_id = str(item.product.id)
-            if p_id in inspections:
-                is_passed = inspections[p_id].get('is_inspected', False)
-                item.is_inspected = is_passed
-                
-                # --- ISSUE REPORT LOGIC ---
-                # If an item fails, create an official Issue Report automatically
-                if not is_passed:
-                    any_item_failed = True
-                    item.status = 'CANCELLED' # Prevent shipping this item
-                    
-                    IssueReport.objects.create(
-                        product=item.product,
-                        reported_by=self.request.user,
-                        department=instance.department,
-                        type='DAMAGE',
-                        description=f"Verification Failed during Packing: {comments}",
-                        urgency='HIGH'
-                    )
-                item.save()
+            assignment.status = 'SHIPPED'
+            assignment.completed_at = timezone.now()
+            assignment.save()
 
-        # 2. Determine Final Assignment Status
-        if any_item_failed:
-            instance.status = 'DAMAGED'
-            
-            # Notify Manager about the Damage
-            Notification.objects.create(
-                title="URGENT: Product Damaged",
-                message=f"Order {instance.order.order_number} has failed verification and is marked as DAMAGED.",
-                department=instance.department,
-                user=instance.manager,
-                notification_type='ISSUE',
-                is_emergency=True
-            )
-        else:
-            instance.status = 'PACKED'
-            
-            # --- STOCK REDUCTION LOGIC (Only if everything passed) ---
-            for item in order_items:
-                product = item.product
-                if product.total_stock >= item.quantity:
-                    product.total_stock -= item.quantity
-                    product.save()
-                else:
-                    raise ValidationError(f"Insufficient stock for {product.name} at final verification.")
+        assignment.order.update_status_from_assignments()
+class StaffTaskDetailView(generics.RetrieveAPIView):
+    serializer_class = OrderAssignmentSerializer
+    permission_classes = [permissions.IsAuthenticated, IsStaffFromDepartment]
 
-            # Notify Manager that Order is ready for final Approval
-            Notification.objects.create(
-                title="Order Ready for Approval",
-                message=f"Order {instance.order.order_number} is packed and waiting for your approval to ship.",
-                department=instance.department,
-                user=instance.manager,
-                notification_type='APPROVAL_REQUIRED'
-            )
+    def get_queryset(self):
+        return OrderAssignment.objects.filter(staff=self.request.user)  
+    
+class StaffCreateIssueView(APIView):
+    permission_classes = [IsAuthenticated]
 
-        # 3. Finalize and Save the Assignment
-        instance.save()
-        serializer.save()
+    def post(self, request):
+        product_id = request.data.get("product")
+        description = request.data.get("description")
+        issue_type = request.data.get("type")
 
+        product = get_object_or_404(Product, id=product_id)
+
+        IssueReport.objects.create(
+            product=product,
+            reported_by=request.user,
+            department=request.user.department,
+            type=issue_type,
+            description=description,
+            urgency="HIGH" if issue_type == "DAMAGE" else "MEDIUM"
+        )
+
+        return Response({
+            "message": "Issue reported successfully"
+        })
+
+
+
+class StaffTaskInspectView(generics.UpdateAPIView):
+    serializer_class = OrderAssignmentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return OrderAssignment.objects.filter(staff=self.request.user)
+
+    def perform_update(self, serializer):
+        with transaction.atomic():
+
+            assignment = self.get_object()
+            serializer.save()
+
+            inspections = self.request.data.get('inspections', {})
+            comments = self.request.data.get('comments', "")
+
+            if not assignment.order:
+                raise ValidationError("Missing order reference")
+
+            # ✅ CORRECT: single order item
+            order_item = assignment.order
+            product = order_item.product
+            p_id = str(product.id)
+
+            # -------------------------------
+            # 1. GET RESULT FROM FRONTEND
+            # -------------------------------
+            is_passed = inspections.get(p_id, {}).get('is_inspected', False)
+
+            # -------------------------------
+            # 2. CORE BUSINESS LOGIC
+            # -------------------------------
+            if is_passed:
+                assignment.process_verification('PASSED')
+            else:
+                assignment.process_verification('FAILED')
+
+            # -------------------------------
+            # 3. SIDE EFFECTS
+            # -------------------------------
+            if is_passed:
+                # ✅ Stock update
+                if product.total_stock < order_item.quantity:
+                    raise ValidationError(f"Insufficient stock for {product.name}")
+
+                product.total_stock -= order_item.quantity
+                product.save()
+
+                # ✅ FIX: department must NOT be null
+                if not assignment.department:
+                    raise ValidationError("Department is missing")
+
+                # ✅ Notification
+                Notification.objects.create(
+                    title="Order Verified",
+                    message=f"Order {order_item.order_number} is ready for approval",
+                    user=assignment.manager,
+                    department=assignment.department,
+                    notification_type='APPROVAL_REQUIRED'
+                )
+
+            else:
+                # ✅ Issue report
+                IssueReport.objects.create(
+                    product=product,
+                    reported_by=self.request.user,
+                    department=assignment.department,
+                    type='DAMAGE',
+                    description=f"Verification Failed: {comments}",
+                    urgency='HIGH'
+                )
 
 class TaskStatsView(APIView):
     permission_classes = [permissions.IsAuthenticated]

@@ -11,13 +11,15 @@ from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import F
 from django.db import transaction
-from django.shortcuts import get_object_or_404
-from .models import IssueReport  
+from django.utils import timezone
+from datetime import datetime
+from django.db import models
+
 from rest_framework import generics
 from app.accounts.models import User
 from app.accounts.serializers import UserSerializer # Ensure you have a basic UserSerializer
 from app.accounts.permissions import IsManager,IsSuperAdmin
-from django.db import models
+
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
@@ -152,6 +154,7 @@ class Productview(APIView):
         except Product.DoesNotExist:
             return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
 
+
 class VerificationViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     
@@ -159,101 +162,96 @@ class VerificationViewSet(viewsets.ModelViewSet):
     serializer_class = FoodVerificationSerializer 
 
     def get_serializer_class(self):
-        # DRF ViewSets look at request.data for POST requests
-        product_id = self.request.data.get('product')
+    # Check if we are in a POST request
+        if self.request.method == 'POST':
+        # Priority 1: Use the 'active_type' sent from frontend
+            active_type = self.request.data.get('active_type')
         
-        if not product_id:
-            return self.serializer_class # Return default if no product ID provided
-
-        try:
-            product = Product.objects.get(id=product_id)
-            dept_slug = product.department.slug.lower() 
-
-            if 'food' in dept_slug:
+            if active_type == 'food':
                 return FoodVerificationSerializer
-            elif 'furniture' in dept_slug:
-                return FurnitureVerificationSerializer
-            elif 'electronics' in dept_slug:
+            elif active_type == 'electronics':
                 return ElectronicsVerificationSerializer
-            elif 'office' in dept_slug or 'stationery' in dept_slug:
+            elif active_type == 'furniture':
+                return FurnitureVerificationSerializer
+            elif active_type == 'stationery':
                 return StationeryVerificationSerializer
-        except Product.DoesNotExist:
-            pass
-            
-        return self.serializer_class
-    def perform_update(self, serializer):
-        instance = self.get_object()
-        # inspections contains: {"4": {"is_inspected": true}, "5": {"is_inspected": false}}
-        inspections = self.request.data.get('inspections', {})
-        comments = self.request.data.get('comments', "No specific comments provided.")
 
-        if not instance.order:
-            raise ValidationError("Assignment is missing a valid order reference.")
+    # Priority 2: Fallback to product department if type not provided
+        product_id = self.request.data.get('product')
+        if product_id:
+            try:
+                product = Product.objects.get(id=product_id)
+                dept = product.department.slug.lower()
+                if 'food' in dept: return FoodVerificationSerializer
+                if 'electronics' in dept: return ElectronicsVerificationSerializer
+                if 'furniture' in dept: return FurnitureVerificationSerializer
+                if 'stationery' in dept: return StationeryVerificationSerializer
+            except Product.DoesNotExist:
+                self.response = Response({"error": "Invalid product ID"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 1. Fetch all items belonging to this order
-        order_items = OrderItem.objects.filter(order_number=instance.order.order_number)
-
-        any_item_failed = False
+        return super().get_serializer_class()
         
-        for item in order_items:
-            p_id = str(item.product.id)
-            if p_id in inspections:
-                is_passed = inspections[p_id].get('is_inspected', False)
-                item.is_inspected = is_passed
-                
-                # --- ISSUE REPORT LOGIC ---
-                # If an item fails, create an official Issue Report automatically
-                if not is_passed:
-                    any_item_failed = True
-                    item.status = 'CANCELLED' # Prevent shipping this item
-                    
-                    IssueReport.objects.create(
-                        product=item.product,
-                        reported_by=self.request.user,
-                        department=instance.department,
-                        type='DAMAGE',
-                        description=f"Verification Failed during Packing: {comments}",
-                        urgency='HIGH'
-                    )
-                item.save()
 
-        # 2. Determine Final Assignment Status
-        if any_item_failed:
-            instance.status = 'DAMAGED'
+    def perform_create(self, serializer):
+        # 1. Save the verification record
+        # Note: Serializer already knows if it's Food, Electronics, etc.
+        instance = serializer.save(verified_by=self.request.user)
+        product = instance.product
+
+        # 2. Dynamic Field Check
+        # We check all boolean fields of the specific instance (Food, Furniture, etc.)
+        # exclude metadata fields like 'is_passed' or 'id'
+        excluded_fields = {'id', 'is_passed', 'timestamp', 'product_id', 'verified_by_id', 'comments', 'batch_lot', 'unique_serial_number', 'firmware_version'}
+        
+        # Get all boolean fields for this specific verification type
+        all_checks_passed = True
+        for field in instance._meta.fields:
+            if field.name not in excluded_fields and isinstance(field, models.BooleanField):
+                if getattr(instance, field.name) is False:
+                    all_checks_passed = False
+                    break
+
+        # 3. Apply your Logic
+        if all_checks_passed:
+            product.status = 'IN_STOCK' # Or 'VERIFIED' if you add that choice
+            instance.is_passed = True
             
-            # Notify Manager about the Damage
+            # Update Batch Number if it's a Food item
+            if hasattr(instance, 'batch_lot'):
+                product.batch_number = instance.batch_lot
+                
+            # If you have an Order model linked to product, update it here:
+            # if hasattr(product, 'order'):
+            #     product.order.status = 'PACKED'
+            #     product.order.save()
+        else:
+            product.status = 'DAMAGED'
+            instance.is_passed = False
+            
+            # 4. Create Automatic Issue Report
+            IssueReport.objects.create(
+                product=product,
+                reported_by=self.request.user,
+                department=product.department,
+                type='DAMAGE', # Maps to your IssueReport.type choices
+                urgency='HIGH',
+                description=f"AUTO-GEN: {instance.__class__.__name__} failed. {instance.comments or 'No comments provided.'}"
+            )
+
+            # 5. Create Notification
             Notification.objects.create(
-                title="URGENT: Product Damaged",
-                message=f"Order {instance.order.order_number} has failed verification and is marked as DAMAGED.",
-                department=instance.department,
-                user=instance.manager,
+                title="Verification Failed",
+                message=f"Product {product.name} failed quality check and is marked as DAMAGED.",
+                department=product.department,
                 notification_type='ISSUE',
+                product=product,
                 is_emergency=True
             )
-        else:
-            instance.status = 'PACKED'
-            
-            # --- STOCK REDUCTION LOGIC (Only if everything passed) ---
-            for item in order_items:
-                product = item.product
-                if product.total_stock >= item.quantity:
-                    product.total_stock -= item.quantity
-                    product.save()
-                else:
-                    raise ValidationError(f"Insufficient stock for {product.name} at final verification.")
 
-            # Notify Manager that Order is ready for final Approval
-            Notification.objects.create(
-                title="Order Ready for Approval",
-                message=f"Order {instance.order.order_number} is packed and waiting for your approval to ship.",
-                department=instance.department,
-                user=instance.manager,
-                notification_type='APPROVAL_REQUIRED'
-            )
-
-        # 3. Finalize and Save the Assignment
+        # Final saves
         instance.save()
-        serializer.save()
+        product.save()
+        
 class IssueReportCreateView(generics.CreateAPIView):
     queryset = IssueReport.objects.all()
     serializer_class = IssueReportserializer
