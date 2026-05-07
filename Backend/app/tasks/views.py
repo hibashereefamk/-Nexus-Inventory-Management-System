@@ -1,13 +1,13 @@
 from collections import defaultdict
 from urllib import response
 import uuid
-from .serilaizers import OrderAssignmentSerializer,UpdateStatusSerializer,DepartmentManagerSerializer,ProductDetailSerializer
+from .serilaizers import OrderAssignmentSerializer,UpdateStatusSerializer,DepartmentManagerSerializer,CategorySerializer,ProductDetailSerializer
 from rest_framework import generics
 from app.accounts.permissions import IsManager,IsStaffFromDepartment
 from django.utils import timezone
 from django.db.models import Count
 from app.accounts.models import Department
-from app.inventory.models import Product, Notification,IssueReport
+from app.inventory.models import Category, Product, Notification,IssueReport
 from app.inventory.seriliazers import ProductSerializer
 from django.db.models import Q
 
@@ -34,7 +34,63 @@ from rest_framework import generics, permissions
 from .models import OrderAssignment
 from .serilaizers import OrderAssignmentSerializer # Ensure the spelling matches your file
 from app.accounts.permissions import IsManager
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status, permissions
+from django.shortcuts import get_object_or_404
+from app.inventory.models import IssueReport
+from app.tasks.models import OrderItem, OrderAssignment
 
+class AdminResolveIssueView(APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request, report_id):
+        """
+        Final decision by Admin on an escalated IssueReport.
+        """
+        report = get_object_or_404(IssueReport, id=report_id)
+        decision = request.data.get("decision")  # 'CANCEL' or 'RETRY'
+        admin_note = request.data.get("note", "")
+
+        if not decision:
+            return Response({"error": "Decision is required."}, status=400)
+
+        assignment = report.assignment
+        order = assignment.order
+
+        if decision == 'CANCEL':
+            # 1. Update the Order status
+            order.status = 'CANCELLED'
+            order.rejection_reason = f"Admin Decision: {admin_note}"
+            order.save()
+            
+            # 2. Update the Assignment and Issue Report
+            assignment.is_cancelled = True
+            assignment.save()
+            
+            report.is_reviewed_by_manager = True # Admin review counts as final
+            report.is_escalated_to_admin = False
+            report.manager_remarks = admin_note
+            report.save()
+
+        elif decision == 'RETRY':
+            # Reset for another attempt (e.g., different staff or stock fixed)
+            order.status = 'PROCESSING'
+            order.save()
+            
+            assignment.issue_status = 'NONE'
+            assignment.verification_status = 'PENDING'
+            assignment.status = 'PENDING'
+            assignment.save()
+            
+            report.is_reviewed_by_manager = True
+            report.is_escalated_to_admin = False
+            report.save()
+
+        return Response({
+            "message": f"Issue resolved as {decision}",
+            "order_status": order.status
+        })
 
 class AdminOrderListCreateView(APIView):
     permission_classes = [IsAdminUser]
@@ -59,7 +115,8 @@ class AdminOrderListCreateView(APIView):
             "products": [
                 {
                     "name": item.product.name,
-                    "quantity": item.quantity
+                    "quantity": item.quantity,
+                    
                 }
                     for item in items
             ]
@@ -114,36 +171,39 @@ class AdmnOrderRejectView(APIView):
     def post(self, request, order_number):
         """
         POST /api/admin-orders/<order_number>/reject/
+        Handles rejection for both DRAFT and CONFIRMED orders.
         """
-
+        # Fetch all items associated with this order number
         orders = OrderItem.objects.filter(order_number=order_number)
 
         if not orders.exists():
-            return Response({
-                "error": "Order not found."
-            }, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Check status using first item
-        if orders.first().status != 'DRAFT':
+        # Optional: Prevent rejecting orders that are already SHIPPED
+        first_item = orders.first()
+        if first_item.status in ['SHIPPED', 'CANCELLED']:
             return Response({
-                "error": "Only Draft orders can be rejected."
+                "error": f"Cannot reject an order that is already {first_item.status}."
             }, status=status.HTTP_400_BAD_REQUEST)
 
         rejection_reason = request.data.get("rejection_reason", "").strip()
-
         if not rejection_reason:
-            return Response({
-                "error": "Rejection reason is required."
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Rejection reason is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # ✅ Update ALL items in that order
-        orders.update(
-            status='CANCELLED',
-            rejection_reason=rejection_reason
-        )
+        # We must loop to ensure stock is released for CONFIRMED items
+        for item in orders:
+            # If the admin confirms an order, stock gets 'committed'.
+            # If they later reject it, we must give that stock back.
+            if item.status == 'CONFIRMED' or item.status == 'PROCESSING':
+                item.cancel_reservation() 
+            
+            # Update status and reason
+            item.status = 'CANCELLED'
+            item.rejection_reason = rejection_reason
+            item.save()
 
         return Response({
-            "message": f"Order {order_number} has been rejected.",
+            "message": f"Order {order_number} has been rejected and stock reservations released.",
             "status": "CANCELLED"
         }, status=status.HTTP_200_OK)
     
@@ -152,19 +212,28 @@ class AdminOrderConfirmView(APIView):
 
     def post(self, request, order_number):
         orders = OrderItem.objects.filter(order_number=order_number)
-
         if not orders.exists():
             return Response({"error": "Order not found"}, status=404)
 
+        # 1. Check stock for ALL items in the order first
+        for item in orders:
+            if item.product.available_stock < item.quantity:
+                return Response({
+                    "error": f"Insufficient stock for {item.product.name}. Available: {item.product.available_stock}"
+                }, status=400)
+
+        # 2. If all items have stock, reserve them
+        from django.db import transaction
+        with transaction.atomic():
+            for item in orders:
+                # Reserve the stock (Committed Stock logic)
+                item.reserve_stock()
+            
+            # Update status in bulk to avoid choice validation errors during the "Confirm" phase
+            orders.update(status='CONFIRMED')
+
+        # 3. Create the assignment for the warehouse
         first_order = orders.first()
-
-        if first_order.status != 'DRAFT':
-            return Response({"error": "Already processed"}, status=400)
-
-        # ✅ Update ALL items
-        orders.update(status='CONFIRMED')
-
-        # ✅ Create ONE assignment
         OrderAssignment.objects.create(
             order=first_order,
             manager=request.user,
@@ -172,11 +241,7 @@ class AdminOrderConfirmView(APIView):
             status='PENDING'
         )
 
-        return Response({
-            "message": f"{order_number} confirmed",
-            "status": "CONFIRMED"
-        })
-
+        return Response({"message": f"{order_number} confirmed and stock reserved."})
 class ManagerAssignmentListView(APIView):
     """
     GET /api/manager-assignments/
@@ -188,7 +253,7 @@ class ManagerAssignmentListView(APIView):
         assignments = OrderAssignment.objects.select_related(
             'order', 'department', 'staff'
         ).filter(
-            status__in=['PENDING', 'PACKING']
+            status__in=['PENDING', 'PICKING', 'PACKING', 'PACKED', 'SHIPPED']
         ).order_by('-assigned_at')
         
         grouped = defaultdict(list)
@@ -210,6 +275,7 @@ class ManagerAssignmentListView(APIView):
                 "order_number": order_number,
                 "department": first.department.name if first.department else None,
                 "status": first.status,
+                "deadline": first.deadline_date if first.deadline_date else None,
                 "staff": first.staff.username if first.staff else None,
                 "products": [
                     {
@@ -221,39 +287,6 @@ class ManagerAssignmentListView(APIView):
             })
 
         return Response(response)
-
-def get(self, request):
-    assignments = OrderAssignment.objects.select_related('order', 'department', 'staff')\
-        .filter(status__in=['PENDING', 'PACKING'])\
-        .order_by('-assigned_at')
-
-    grouped = defaultdict(list)
-
-    for a in assignments:
-        grouped[a.order.order_number].append(a)
-
-    response = []
-
-    for order_number, group in grouped.items():
-        first = group[0]
-        items = OrderItem.objects.filter(order_number=order_number)
-
-        response.append({
-            "id": first.id,
-            "order_number": order_number,
-            "department": first.department.name,
-            "status": first.status,
-            "staff": first.staff.username if first.staff else None,
-            "products": [
-                {
-                    "name": item.product.name,
-                    "quantity": item.quantity
-                }
-                for item in items
-            ]
-        })
-
-    return Response(response)
 
 class ManagerAssignStaffView(APIView):
     """
@@ -305,15 +338,16 @@ class ManagerApproveOrderView(generics.UpdateAPIView):
 
     def perform_update(self, serializer):
         assignment = self.get_object()
-
         decision = self.request.data.get("decision")  # APPROVED / REJECTED
+        remarks = self.request.data.get("remarks", "") # Capture manager's note
 
-        assignment.manager_decision(decision)
+        # ✅ Call model method with the new remarks argument
+        assignment.manager_decision(decision, remarks=remarks)
 
         # Notify staff
         Notification.objects.create(
             title="Manager Decision",
-            message=f"Order {assignment.order.order_number} {decision.lower()}",
+            message=f"Order {assignment.order.order_number} {decision.lower()}: {remarks}",
             user=assignment.staff,
             notification_type='READY_TO_SHIP' if decision == 'APPROVED' else 'REJECTED'
         )
@@ -443,68 +477,46 @@ class StaffTaskInspectView(generics.UpdateAPIView):
 
     def perform_update(self, serializer):
         with transaction.atomic():
-
             assignment = self.get_object()
-            serializer.save()
-
-            inspections = self.request.data.get('inspections', {})
+            
+            # 1. Get data from the flat request structure sent by React
+            is_passed = self.request.data.get('is_passed', False)
             comments = self.request.data.get('comments', "")
+
+            # 2. Save the primary assignment data
+            serializer.save()
 
             if not assignment.order:
                 raise ValidationError("Missing order reference")
 
-            # ✅ CORRECT: single order item
             order_item = assignment.order
             product = order_item.product
-            p_id = str(product.id)
 
             # -------------------------------
-            # 1. GET RESULT FROM FRONTEND
+            # ✅ TRIGGER MODEL BUSINESS LOGIC
             # -------------------------------
-            is_passed = inspections.get(p_id, {}).get('is_inspected', False)
-
-            # -------------------------------
-            # 2. CORE BUSINESS LOGIC
-            # -------------------------------
+            # This updates verification_status, issue_status, and OrderItem status
             if is_passed:
                 assignment.process_verification('PASSED')
             else:
-                assignment.process_verification('FAILED')
+                # If expired or failed, this creates the IssueReport
+                assignment.process_verification('FAILED', description=comments)
 
             # -------------------------------
-            # 3. SIDE EFFECTS
+            # ✅ PRODUCT STOCK & EXPIRY LOGIC
             # -------------------------------
             if is_passed:
-                # ✅ Stock update
+                # Basic Stock Check
                 if product.total_stock < order_item.quantity:
                     raise ValidationError(f"Insufficient stock for {product.name}")
 
+                # Final Physical Deduction (Only on PASS)
                 product.total_stock -= order_item.quantity
                 product.save()
-
-                # ✅ FIX: department must NOT be null
-                if not assignment.department:
-                    raise ValidationError("Department is missing")
-
-                # ✅ Notification
-                Notification.objects.create(
-                    title="Order Verified",
-                    message=f"Order {order_item.order_number} is ready for approval",
-                    user=assignment.manager,
-                    department=assignment.department,
-                    notification_type='APPROVAL_REQUIRED'
-                )
-
             else:
-                # ✅ Issue report
-                IssueReport.objects.create(
-                    product=product,
-                    reported_by=self.request.user,
-                    department=assignment.department,
-                    type='DAMAGE',
-                    description=f"Verification Failed: {comments}",
-                    urgency='HIGH'
-                )
+                # If FAILED, we mark the product as DAMAGED in the inventory
+                product.status = 'DAMAGED'
+                product.save()
 
 class TaskStatsView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -527,10 +539,7 @@ class TaskStatsView(APIView):
         return Response(response_data)
 # Use the serializer created above
 
-class DepartmentListView(generics.ListAPIView):
-    """
-    Returns a list of all departments with their assigned staff.
-    """
-    queryset = Department.objects.select_related('manager').all()
-    serializer_class = DepartmentManagerSerializer
-    permission_classes = [IsAuthenticated]
+class CategoryListView(generics.ListAPIView):
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
+    permission_classes = [IsAuthenticated]  

@@ -1,3 +1,4 @@
+import uuid
 from django.db import models
 from app.accounts.models import User, SystemLog,Department
 from app.requests.models import ApprovalRequest
@@ -48,29 +49,61 @@ class Product(models.Model):
     batch_number = models.CharField(max_length=50, null=True, blank=True)
     
     # Stock Management
-    total_stock = models.IntegerField(default=0)
+    total_stock = models.IntegerField(default=0, help_text="Physical items currently in the warehouse")
+    committed_stock = models.IntegerField(default=0, help_text="Items reserved for orders not yet shipped")
     min_stock_level = models.IntegerField(default=5)
     reorder_level = models.IntegerField(null=True, blank=True)
     priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='LOW')
 
     # Logistics
-    bin_location = models.CharField(max_length=20, default="AISLE-1-A")
-    manager_deadline = models.DateField(null=True, blank=True)
-    # 1. class Meta must only contain Django options
+    bin_location = models.CharField(max_length=20, default="AISLE-1-A",null=True, blank=True)
+    
     class Meta:
         ordering = ['-id']
 
-    # 2. Methods must be indented at the SAME level as class Meta, NOT inside it
+    @property
+    def available_stock(self):
+        """
+        The critical ERP value: How many can we actually sell right now?
+        """
+        return self.total_stock - self.committed_stock
+
     @property
     def is_low_stock(self):
-        return self.total_stock <= self.min_stock_level
+        # Professional ERPs use available_stock for low-stock alerts, not total_stock
+        return self.available_stock <= self.min_stock_leve
+    def update_inventory_status(self):
+        """
+        Sets status based on availability, not just physical presence.
+        """
+        if self.available_stock <= 0:
+            self.status = 'OUT_OF_STOCK'
+        elif self.status == 'OUT_OF_STOCK' and self.available_stock > 0:
+            self.status = 'IN_STOCK'
 
+    def generate_batch_number(self):
+        """
+        Example:
+        MLK-20260506-AB12
+        """
+
+        sku_part = self.sku[:3].upper()
+
+        date_part = timezone.now().strftime("%Y%m%d")
+
+        random_part = uuid.uuid4().hex[:4].upper()
+
+        return f"{sku_part}-{date_part}-{random_part}"
     def clean(self):
         super().clean()
         if not self.department:
             return
 
         dept = self.department.name.lower()
+        if self.committed_stock > self.total_stock:
+            raise ValidationError({
+                "committed_stock": f"Cannot commit {self.committed_stock} items when you only have {self.total_stock} in total."
+            })
 
         if "electronics" in dept and not self.warranty_expiry:
             raise ValidationError({"warranty_expiry": "Electronics REQUIRE a warranty expiry date."})
@@ -79,12 +112,12 @@ class Product(models.Model):
             if not self.expiry_date:
                 raise ValidationError({"expiry_date": "Food items REQUIRE an expiry date."})
             
-            if self.expiry_date and self.manager_deadline:
-                safe_ship_limit = self.expiry_date - timedelta(days=10)
-                if self.manager_deadline > safe_ship_limit:
-                    raise ValidationError({
-                        "manager_deadline": f"Deadline must be before {safe_ship_limit}."
-                    })
+            # if self.expiry_date and self.manager_deadline:
+            #     safe_ship_limit = self.expiry_date - timedelta(days=10)
+            #     if self.manager_deadline > safe_ship_limit:
+            #         raise ValidationError({
+            #             "manager_deadline": f"Deadline must be before {safe_ship_limit}."
+            #         })
 
         elif "office" in dept and self.reorder_level is None:
             raise ValidationError({"reorder_level": "Set a minimum stock level for stationery."})
@@ -98,15 +131,12 @@ class Product(models.Model):
             elif days_until <= 30:
                 self.priority = 'HIGH'
 
-        self.update_inventory_status() # Auto-update status before saving
+        self.update_inventory_status()
+        if self.available_stock <= 0:
+            self.priority = 'URGENT' # Auto-update status before saving
         self.full_clean() 
         super().save(*args, **kwargs)
 
-    def update_inventory_status(self):
-        if self.total_stock <= 0:
-            self.status = 'OUT_OF_STOCK'
-        elif self.status == 'OUT_OF_STOCK' and self.total_stock > 0:
-            self.status = 'IN_STOCK'
 
     @classmethod
     def get_expiring_soon(cls):
@@ -118,7 +148,7 @@ class Product(models.Model):
         )
 
     def __str__(self):
-        return f"{self.name} - {self.department.name}"
+        return f"{self.name} -(Avail: {self.available_stock})"
 @receiver(post_save, sender=Product)
 def log_inventory_activity(sender, instance, created, **kwargs):
     if created:

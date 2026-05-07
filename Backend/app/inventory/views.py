@@ -1,6 +1,6 @@
 from rest_framework import generics, permissions
 from rest_framework.views import APIView
-from .models import Product,IssueReport,Notification, StockLog
+from app.tasks.models import OrderAssignment
 from rest_framework.response import Response
 from rest_framework import status
 from app.accounts.permissions import IsManager,IsStaffFromDepartment,IsSuperAdmin
@@ -12,17 +12,21 @@ from rest_framework.permissions import IsAuthenticated
 from django.db.models import F
 from django.db import transaction
 from django.utils import timezone
-from datetime import datetime
-from django.db import models
+from django.shortcuts import get_object_or_404
 
 from rest_framework import generics
 from app.accounts.models import User
 from app.accounts.serializers import UserSerializer # Ensure you have a basic UserSerializer
 from app.accounts.permissions import IsManager,IsSuperAdmin
-
-from rest_framework import status
+from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import action
+from django.shortcuts import get_object_or_404
+from .models import (
+    Product, FoodVerification, ElectronicsVerification,IssueReport,Notification, StockLog, 
+    FurnitureVerification, StationeryVerification, IssueReport
+)
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 
 @api_view(['POST'])
@@ -52,8 +56,13 @@ class Productview(APIView):
             # Allows Managers or Superusers
             return [(IsManager | IsSuperAdmin)()] 
         return [IsStaffFromDepartment()] 
-    def get(self, request):
-        products =Product.objects.all().order_by('name')
+    def get(self, request, pk=None):
+        if pk:
+            product = get_object_or_404(Product, pk=pk)
+            serializer = ProductSerializer(product)
+            return Response(serializer.data)
+        
+        products = Product.objects.all().order_by('name')
         serializer = ProductSerializer(products, many=True)
         return Response(serializer.data)
     def post(self, request):
@@ -103,6 +112,7 @@ class Productview(APIView):
 
                     # Update stock using F() to ensure accuracy at database level
                     product.total_stock = F('total_stock') - qty
+                    product.committed_stock = F('committed_stock') - qty
                     product.save()
                     product.refresh_from_db()
 
@@ -155,102 +165,128 @@ class Productview(APIView):
             return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
 
 
+
+
 class VerificationViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
-    
-    # CRITICAL: Define a default serializer class so DRF doesn't crash
-    serializer_class = FoodVerificationSerializer 
+    serializer_class = FoodVerificationSerializer # Default fallback
+
+    def get_queryset(self):
+        # Since we use multiple models, return None or a dummy. 
+        # The 'list' and 'history' methods will handle fetching data.
+        return None
 
     def get_serializer_class(self):
-    # Check if we are in a POST request
         if self.request.method == 'POST':
-        # Priority 1: Use the 'active_type' sent from frontend
             active_type = self.request.data.get('active_type')
-        
-            if active_type == 'food':
-                return FoodVerificationSerializer
-            elif active_type == 'electronics':
-                return ElectronicsVerificationSerializer
-            elif active_type == 'furniture':
-                return FurnitureVerificationSerializer
-            elif active_type == 'stationery':
-                return StationeryVerificationSerializer
+            if active_type == 'food': return FoodVerificationSerializer
+            if active_type == 'electronics': return ElectronicsVerificationSerializer
+            if active_type == 'furniture': return FurnitureVerificationSerializer
+            if active_type == 'stationery': return StationeryVerificationSerializer
+        return FoodVerificationSerializer
 
-    # Priority 2: Fallback to product department if type not provided
-        product_id = self.request.data.get('product')
-        if product_id:
-            try:
-                product = Product.objects.get(id=product_id)
-                dept = product.department.slug.lower()
-                if 'food' in dept: return FoodVerificationSerializer
-                if 'electronics' in dept: return ElectronicsVerificationSerializer
-                if 'furniture' in dept: return FurnitureVerificationSerializer
-                if 'stationery' in dept: return StationeryVerificationSerializer
-            except Product.DoesNotExist:
-                self.response = Response({"error": "Invalid product ID"}, status=status.HTTP_400_BAD_REQUEST)
+    def list(self, request, *args, **kwargs):
+        """Returns all verifications from all tables combined."""
+        food = FoodVerification.objects.all()
+        elec = ElectronicsVerification.objects.all()
+        furn = FurnitureVerification.objects.all()
+        stat = StationeryVerification.objects.all()
 
-        return super().get_serializer_class()
+        data = {
+            "food_verifications": FoodVerificationSerializer(food, many=True).data,
+            "electronics_verifications": ElectronicsVerificationSerializer(elec, many=True).data,
+            "furniture_verifications": FurnitureVerificationSerializer(furn, many=True).data,
+            "stationery_verifications": StationeryVerificationSerializer(stat, many=True).data,
+        }
+        return Response(data)
+
+    @action(detail=False, methods=['get'], url_path='history/(?P<product_id>\d+)')
+    def product_history(self, request, product_id=None):
+        """Shows every check done on a specific product with full details."""
+        food = FoodVerification.objects.filter(product_id=product_id)
+        elec = ElectronicsVerification.objects.filter(product_id=product_id)
+        furn = FurnitureVerification.objects.filter(product_id=product_id)
+        stat = StationeryVerification.objects.filter(product_id=product_id)
+
+        # Merge into one list
+        results = (
+            FoodVerificationSerializer(food, many=True).data +
+            ElectronicsVerificationSerializer(elec, many=True).data +
+            FurnitureVerificationSerializer(furn, many=True).data +
+            StationeryVerificationSerializer(stat, many=True).data
+        )
         
+        # Sort by latest first
+        results.sort(key=lambda x: x['timestamp'], reverse=True)
+        return Response(results)
 
     def perform_create(self, serializer):
-        # 1. Save the verification record
-        # Note: Serializer already knows if it's Food, Electronics, etc.
+        # 1. Capture the instance
         instance = serializer.save(verified_by=self.request.user)
         product = instance.product
-
-        # 2. Dynamic Field Check
-        # We check all boolean fields of the specific instance (Food, Furniture, etc.)
-        # exclude metadata fields like 'is_passed' or 'id'
-        excluded_fields = {'id', 'is_passed', 'timestamp', 'product_id', 'verified_by_id', 'comments', 'batch_lot', 'unique_serial_number', 'firmware_version'}
+        today = timezone.now().date()
         
-        # Get all boolean fields for this specific verification type
+        # Priority: Get assignment_id from POST data
+        assignment_id = self.request.data.get('assignment_id')
+        assignment = None
+        if assignment_id:
+            assignment = OrderAssignment.objects.filter(id=assignment_id).first()
+
         all_checks_passed = True
-        for field in instance._meta.fields:
-            if field.name not in excluded_fields and isinstance(field, models.BooleanField):
-                if getattr(instance, field.name) is False:
-                    all_checks_passed = False
-                    break
+        auto_comment = "" 
 
-        # 3. Apply your Logic
+        # 2. Logic to determine if it passed based on model type
+        if isinstance(instance, FoodVerification):
+            checks = [instance.temp_chain_ok, instance.packaging_sealed, instance.fssai_verified]
+            if product.expiry_date and product.expiry_date < today:
+                all_checks_passed = False
+                auto_comment = f"FAILED: Product expired on {product.expiry_date}. "
+            if not all(checks):
+                all_checks_passed = False
+
+        elif isinstance(instance, ElectronicsVerification):
+            checks = [instance.boot_test_passed, instance.ports_physical_ok]
+            if product.warranty_expiry and product.warranty_expiry < today:
+                all_checks_passed = False
+                auto_comment = f"FAILED: Warranty expired on {product.warranty_expiry}. "
+            if not all(checks):
+                all_checks_passed = False
+
+        # ... (Furniture/Stationery logic) ...
+
+        # 3. CRITICAL SYNC: Update both Product and Assignment
         if all_checks_passed:
-            product.status = 'IN_STOCK' # Or 'VERIFIED' if you add that choice
             instance.is_passed = True
+            product.status = 'IN_STOCK' # It's good, keep/return to stock
             
-            # Update Batch Number if it's a Food item
-            if hasattr(instance, 'batch_lot'):
-                product.batch_number = instance.batch_lot
-                
-            # If you have an Order model linked to product, update it here:
-            # if hasattr(product, 'order'):
-            #     product.order.status = 'PACKED'
-            #     product.order.save()
+            if assignment:
+                # Trigger the model logic you wrote: verification_status -> PASSED
+                assignment.process_verification('PASSED') 
         else:
-            product.status = 'DAMAGED'
             instance.is_passed = False
+            # If verification fails, the product MUST be DAMAGED in the ERP
+            product.status = 'DAMAGED' 
+            instance.comments = f"{auto_comment} {instance.comments or ''}".strip()
             
-            # 4. Create Automatic Issue Report
-            IssueReport.objects.create(
-                product=product,
-                reported_by=self.request.user,
-                department=product.department,
-                type='DAMAGE', # Maps to your IssueReport.type choices
-                urgency='HIGH',
-                description=f"AUTO-GEN: {instance.__class__.__name__} failed. {instance.comments or 'No comments provided.'}"
-            )
+            if assignment:
+                # Trigger the model logic you wrote: verification_status -> FAILED
+                # This also creates the IssueReport automatically!
+                assignment.process_verification('FAILED', description=instance.comments)
+            else:
+                # Fallback: Create report if no assignment context exists
+                IssueReport.objects.create(
+                    product=product,
+                    reported_by=self.request.user,
+                    department=product.department,
+                    type='EXPIRY' if "expired" in auto_comment else 'DAMAGE',
+                    description=f"VERIFICATION FAILED: {instance.comments}",
+                    urgency='HIGH'
+                )
 
-            # 5. Create Notification
-            Notification.objects.create(
-                title="Verification Failed",
-                message=f"Product {product.name} failed quality check and is marked as DAMAGED.",
-                department=product.department,
-                notification_type='ISSUE',
-                product=product,
-                is_emergency=True
-            )
-
-        # Final saves
         instance.save()
-        product.save()
+        product.save() # This updates the status you see in the JSON
+
+
         
 class IssueReportCreateView(generics.CreateAPIView):
     queryset = IssueReport.objects.all()

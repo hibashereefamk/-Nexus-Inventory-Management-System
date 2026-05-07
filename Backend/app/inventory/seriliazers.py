@@ -31,6 +31,7 @@ class StationeryVerificationSerializer(serializers.ModelSerializer):
         fields = '__all__'
 class ProductSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source='department.name', read_only=True)
+    category_name = serializers.CharField(source='category.name', read_only=True)
     is_urgent = serializers.BooleanField(source='is_low_stock', read_only=True)
     is_low_stock = serializers.ReadOnlyField()
     class Meta:

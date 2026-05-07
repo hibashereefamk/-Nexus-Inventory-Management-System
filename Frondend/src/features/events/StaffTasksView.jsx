@@ -1,7 +1,8 @@
+
 import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { 
-  FiPackage, FiClock, FiCheckCircle, FiSearch 
+  FiPackage, FiClock, FiCheckCircle, FiSearch,FiXCircle 
 } from "react-icons/fi";
 import { toast, Toaster } from "react-hot-toast";
 import ProductVerification from "./VerificationMode";
@@ -44,56 +45,7 @@ const StaffTaskTerminal = () => {
     }
   }, []);
 
-  // --- 2. TRIGGER FETCH ON MOUNT ---
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  // Handle verification logic
-  const handleOpenVerification = async (taskItem) => {
-    try {
-      // Corrected URL to match your Django path: staff/tasks/<id>/
-      const response = await axios.get(
-        `${API}/api/orders/staff/tasks/${taskItem.id}/`, 
-        getAuthHeaders()
-      );
-
-      const items = response.data.order_details
-  ? [{
-      id: response.data.order_details.id,
-      product_details: response.data.order_details.product_details,
-      quantity: response.data.order_details.quantity,
-      is_inspected: false, // default
-    }]
-  : [];
-
-      if (items.length === 0) {
-        toast.warn("No products found for this task.");
-        return;
-      }
-
-      setInspectionItems(items); 
-      setActiveVerificationTask(taskItem);
-      setIsSelectingProduct(true);
-      
-    } catch (err) {
-      toast.error("Could not load products for this task.");
-    }
-  };
-
-  // Search and Filter Logic
-  useEffect(() => {
-    let result = tasks.filter(t => 
-      t.order_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.department_name?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    if (filterPriority !== "ALL") {
-      result = result.filter(t => t.priority === filterPriority);
-    }
-    setFilteredTasks(result);
-  }, [searchTerm, filterPriority, tasks]);
-
-  const updateStatus = async (id, status) => {
+ const updateStatus = async (id, status) => {
     try {
       await axios.patch(`${API}/api/orders/staff/update-task/${id}/`, { status }, getAuthHeaders());
       toast.success(`Status updated to ${status}`);
@@ -103,6 +55,39 @@ const StaffTaskTerminal = () => {
     }
   };
 
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+ const handleOpenVerification = async (taskItem) => {
+  try {
+    const pId = taskItem.order_details.product; // Get Product ID
+    
+    // 1. Fetch the full history for this specific product
+    const historyRes = await axios.get(
+      `${API}/api/inventory/verify-products/history/${pId}/`, 
+      getAuthHeaders()
+    );
+
+    // 2. Get the latest record (since history is sorted by timestamp)
+    const latestVerification = historyRes.data.length > 0 ? historyRes.data[0] : null;
+
+    const items = [{
+      ...taskItem.order_details,
+      product_details: taskItem.order_details.product_details,
+      // 3. ATTACH THE FULL JSON DATA HERE
+      last_verification: latestVerification, 
+      is_inspected: false,
+    }];
+
+    setInspectionItems(items); 
+    setActiveVerificationTask(taskItem);
+    setIsSelectingProduct(true);
+    
+  } catch (err) {
+    toast.error("ERP History Sync Error.");
+  }
+};
  // --- RENDER MODES ---
 
 if (isSelectingProduct && activeVerificationTask) {
@@ -168,7 +153,8 @@ if (isSelectingProduct && activeVerificationTask) {
                         </thead>
                         <tbody>
                             {inspectionItems.map((item) => (
-                                <tr key={item.id} className="border-b border-slate-100 last:border-none hover:bg-slate-50/50 transition-colors">
+  <React.Fragment key={item.id}>
+    <tr className="border-b border-slate-100">
                                     <td className="p-4">
                                         <p className="font-bold text-slate-900">{item.product_details?.name}</p>
                                         <p className="text-[10px] font-mono text-slate-400">{item.product_details?.sku}</p>
@@ -194,12 +180,35 @@ if (isSelectingProduct && activeVerificationTask) {
                                     </td>
                                    <td className="p-4 text-right">
   {item.issue_status === 'DAMAGED' ? (
-    <button 
-      disabled
-      className="px-4 py-1.5 rounded-lg text-[10px] font-black uppercase bg-red-100 text-red-600 border border-red-200 cursor-not-allowed"
-    >
-      Issue Reported
-    </button>
+    <div className="flex flex-col items-end gap-2">
+      <button 
+        disabled
+        className="px-4 py-1.5 rounded-lg text-[10px] font-black uppercase bg-red-100 text-red-600 border border-red-200 cursor-not-allowed"
+      >
+        Issue Reported
+      </button>
+      
+      {/* NEW: Explicit button to see the report and start fixing */}
+      <button
+        onClick={() => {
+          setActiveVerificationTask({ 
+            ...task, 
+            current_product: {
+              ...item.product_details,
+              order_item_id: item.id,
+              task_id: task.id,
+              product_name: item.product_details?.name,
+              issue_description: task.issue_description // From your handleOpenVerification logic
+            } 
+          });
+          setIsSelectingProduct(false);
+        }}
+        className="text-[10px] font-bold text-red-700 underline hover:text-red-900"
+      >
+        View Damage Report & Start Rework
+      </button>
+    </div>
+  
   ) : item.is_inspected ? (
     <button 
       disabled
@@ -236,7 +245,50 @@ if (isSelectingProduct && activeVerificationTask) {
   )}
 </td>
                                 </tr>
-                            ))}
+                            {item.last_verification && !item.last_verification.is_passed && (
+      <tr>
+        <td colSpan="5" className="p-0">
+          <div className="bg-red-50 border-x-4 border-red-500 m-2 p-4 rounded-lg shadow-inner">
+            <div className="flex justify-between items-start mb-3">
+              <h4 className="text-xs font-black text-red-800 uppercase flex items-center gap-2">
+                <FiXCircle /> Audit Failure Report
+              </h4>
+              <span className="text-[10px] font-mono text-red-400">
+                Log ID: {item.last_verification.id} | {new Date(item.last_verification.timestamp).toLocaleString()}
+              </span>
+            </div>
+
+            {/* Checklist Results */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
+              {/* Logic to map boolean fields to icons */}
+              {Object.entries(item.last_verification).map(([key, value]) => {
+                if (typeof value === 'boolean' && key !== 'is_passed') {
+                  return (
+                    <div key={key} className="flex items-center gap-2">
+                      {value ? 
+                        <FiCheckCircle className="text-emerald-500" /> : 
+                        <FiXCircle className="text-red-500" />
+                      }
+                      <span className={`text-[10px] font-bold ${value ? 'text-slate-500' : 'text-red-700 underline'}`}>
+                        {key.replace(/_/g, ' ').toUpperCase()}
+                      </span>
+                    </div>
+                  );
+                }
+                return null;
+              })}
+            </div>
+
+            <div className="bg-white/60 p-2 rounded border border-red-100">
+               <p className="text-[10px] font-black text-red-400 uppercase">Staff Comments:</p>
+               <p className="text-sm italic text-slate-700">"{item.last_verification.comments}"</p>
+            </div>
+          </div>
+        </td>
+      </tr>
+    )}
+  </React.Fragment>
+))}
                         </tbody>
                     </table>
                 </div>
@@ -368,41 +420,66 @@ if (!isSelectingProduct && activeVerificationTask?.current_product) {
             </div>
           </td>
 
-          {/* ACTION */}
-          <td className="p-4 text-right">
-            {task.status === "PENDING" && (
-              <button
-                onClick={() => updateStatus(task.id, "PACKING")}
-                className="px-4 py-1.5 bg-slate-900 text-white text-xs font-bold rounded"
-              >
-                Start
-              </button>
-            )}
+         {/* ACTION */}
+<td className="p-4 text-right">
+  {/* 1. EXCEPTION PATH: Verification Failed (Rework Required) */}
+  {task.verification_status === 'FAILED' ? (
+    <button
+      onClick={() => handleOpenVerification(task)}
+      className="px-4 py-1.5 bg-red-600 text-white text-xs font-bold rounded shadow-sm hover:bg-red-700 transition-colors"
+    >
+      Rework / Fix Issue
+    </button>
+  ) : (
+    <>
+      {/* 2. HAPPY PATH: Standard Workflow */}
+      
+      {/* PENDING -> Start Packing */}
+      {task.status === "PENDING" && (
+        <button
+          onClick={() => updateStatus(task.id, "PACKING")}
+          className="px-4 py-1.5 bg-slate-900 text-white text-xs font-bold rounded hover:bg-black transition-colors"
+        >
+          Start
+        </button>
+      )}
 
-            {task.status === "PACKING" && (
-              <button
-                onClick={() => handleOpenVerification(task)}
-                className="px-4 py-1.5 bg-blue-600 text-white text-xs font-bold rounded"
-              >
-                Verify
-              </button>
-            )}
+      {/* PACKING -> Open Verification Modal */}
+      {task.status === "PACKING" && (
+        <button
+          onClick={() => handleOpenVerification(task)}
+          className="px-4 py-1.5 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 transition-colors"
+        >
+          Verify
+        </button>
+      )}
 
-            {task.status === "PACKED" && task.approval_status === "APPROVED" && (
-              <button
-                onClick={() => updateStatus(task.id, "SHIPPED")}
-                className="px-4 py-1.5 bg-green-600 text-white text-xs font-bold rounded"
-              >
-                Ship
-              </button>
-            )}
+      {/* PACKED & APPROVED -> Final Shipment */}
+      {task.status === "PACKED" && task.approval_status === "APPROVED" && (
+        <button
+          onClick={() => updateStatus(task.id, "SHIPPED")}
+          className="px-4 py-1.5 bg-green-600 text-white text-xs font-bold rounded hover:bg-green-700 transition-colors"
+        >
+          Ship
+        </button>
+      )}
 
-            {task.status === "PACKED" && task.approval_status === "PENDING" && (
-              <span className="text-xs text-yellow-600 font-bold">
-                Waiting Approval
-              </span>
-            )}
-          </td>
+      {/* PACKED & PENDING -> Waiting for Manager */}
+      {task.status === "PACKED" && task.approval_status === "PENDING" && (
+        <span className="inline-flex items-center px-3 py-1 bg-amber-50 text-amber-600 text-[10px] font-black uppercase rounded-full border border-amber-100">
+          Waiting Approval
+        </span>
+      )}
+      
+      {/* SHIPPED -> Completed State */}
+      {task.status === "SHIPPED" && (
+        <span className="text-emerald-600 font-black text-[10px] uppercase">
+          ✔ Dispatched
+        </span>
+      )}
+    </>
+  )}
+</td>
 
         </tr>
       ))}

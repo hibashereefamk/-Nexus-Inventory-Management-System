@@ -2,12 +2,12 @@ from django.urls import path
 
 
 from .views import (
-    AdminOrderListCreateView, AdminOrderConfirmView, ManagerApproveOrderView,
+    AdminOrderListCreateView, AdminOrderConfirmView, AdminResolveIssueView, ManagerApproveOrderView,
     ManagerAssignmentListView, ManagerAssignStaffView,
     ManagerStaffFulfillmentView, ManagerDashboardStats,
     StaffDashboardTasksView, StaffUpdateTaskStatusView,
     StaffTaskDetailView, StaffTaskInspectView, TaskStatsView,
-    DepartmentListView, productListView,AdmnOrderRejectView,StaffCreateIssueView
+    DepartmentListView, CategoryListView, productListView,AdmnOrderRejectView,StaffCreateIssueView
 )
 
 urlpatterns = [
@@ -15,7 +15,7 @@ urlpatterns = [
     path('admin/orders/', AdminOrderListCreateView.as_view(), name='admin-order-list'),
     path('admin/orders/<str:order_number>/confirm/', AdminOrderConfirmView.as_view(), name='admin-order-confirm'),
     path('admin/orders/<str:order_number>/reject/', AdmnOrderRejectView.as_view(), name='admin-order-reject'),
-
+    path('admin/orders/resolve-issue/',AdminResolveIssueView.as_view(), name='admin-resolve-issue'),
     # --- MANAGER ENDPOINTS ---
     path('manager/dashboard/', ManagerDashboardStats.as_view(), name='manager-dashboard'),
     path('manager/assignments/', ManagerAssignmentListView.as_view(), name='manager-assignment-list'),
@@ -33,7 +33,8 @@ urlpatterns = [
     path('staff/report-issue/', StaffCreateIssueView.as_view()),
 
     path('products-short/', productListView.as_view(), name='product-list'),
-    path('departments/', DepartmentListView.as_view(), name='department-list'),          
+    path('departments/', DepartmentListView.as_view(), name='department-list'),
+    path('categories/', CategoryListView.as_view(), name='category-list'),           
 ]
 
 

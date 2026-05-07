@@ -1,7 +1,7 @@
 # app/orders/serializers.py
 from rest_framework import serializers
 from .models import OrderAssignment, OrderItem
-from app.inventory.models import Product
+from app.inventory.models import Product,Category
 from app.accounts.models import Department
 from rest_framework.exceptions import ValidationError
 
@@ -11,9 +11,14 @@ class ProductDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = ['id', 'name', 'sku', 'category_name']
+        fields = ['id', 'name', 'sku', 'category_name','expiry_date',
+                  'warranty_expiry','total_stock','department', 
+            'bin_location','batch_number','committed_stock', 'status']
 
-
+class CategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = ['id', 'name']
 
 class DepartmentManagerSerializer(serializers.ModelSerializer):
     staff = serializers.CharField(source='manager.username')

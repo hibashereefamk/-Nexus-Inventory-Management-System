@@ -33,9 +33,28 @@ class OrderItem(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    # -------------------------------
-    # BUSINESS LOGIC
-    # -------------------------------
+    def reserve_stock(self):
+        """Increase committed_stock when order is confirmed."""
+        product = self.product
+        if product.available_stock >= self.quantity:
+            product.committed_stock += self.quantity
+            product.save()
+            return True
+        return False
+
+    def release_stock(self):
+        """Reduce physical stock when shipment is finalized."""
+        product = self.product
+        product.total_stock -= self.quantity
+        product.committed_stock -= self.quantity
+        product.save()
+
+    def cancel_reservation(self):
+        """If order is cancelled/rejected, give the committed stock back."""
+        product = self.product
+        product.committed_stock -= self.quantity
+        product.save()
+
     def confirm_order(self):
         if self.status == 'DRAFT':
             self.status = 'CONFIRMED'
@@ -90,7 +109,6 @@ class OrderAssignment(models.Model):
         ('PACKING', 'Packing'),
         ('PACKED', 'Packed'),
         ('SHIPPED', 'Shipped'),
-        ('DELIVERED', 'Delivered'),
     ]
 
     # 🔹 Verification result
@@ -183,12 +201,17 @@ class OrderAssignment(models.Model):
             if self.verification_status == 'PASSED':
                 self.status = 'SHIPPED'
                 self.completed_at = timezone.now()
+                all_items = OrderItem.objects.filter(order_number=self.order.order_number)
+                for item in all_items:
+                    item.release_stock()
 
         elif decision == 'REJECTED':
             self.approval_status = 'REJECTED'
             self.is_cancelled = True
             
-            # Update the associated IssueReport if it exists
+            all_items = OrderItem.objects.filter(order_number=self.order.order_number)
+            for item in all_items:
+                item.cancel_reservation()
             report = self.issue_reports.first() 
             if report:
                 report.manager_remarks = remarks # Now this works because of the argument above
