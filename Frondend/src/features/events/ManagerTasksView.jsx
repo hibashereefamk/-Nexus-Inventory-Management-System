@@ -159,48 +159,56 @@ function ManagerTasksView() {
 
                   <td className="p-4 text-right space-x-2">
 
-                    {/* ASSIGN / REASSIGN */}
-                    <td className="p-4 text-right space-x-2">
-  
-  {/* 1. Show 'Review Damage' if verification failed, even if status is PACKING */}
+                   <td className="p-4 text-right space-x-2">
+  {/* 1. CRITICAL PRIORITY: Damage Review */}
+  {/* If verification failed, this is the only action that matters */}
   {task.verification_status === "FAILED" ? (
     <button
       onClick={(e) => {
         e.stopPropagation();
-        navigate(`/manager/order/${task.id}`); 
+        navigate(`/manager/order-review/${task.id}`);
       }}
-      className="bg-red-600 text-white px-3 py-1 rounded text-xs font-semibold"
+      className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-xs font-black shadow-sm transition-all"
     >
-      Review Damage
+      REVIEW DAMAGE REPORT
     </button>
   ) : (
-    <>
-      
-      {/* Professional Action: Assignment Control */}
-{(task.status === "PACKING" || task.status === "PENDING") && (
-  <button
-    onClick={(e) => {
-      e.stopPropagation();
-      setSelectedTask(task);
-    }}
-    className="bg-indigo-600 text-white px-3 py-1 rounded text-xs font-semibold hover:bg-indigo-700 transition-colors"
-  >
-    {task.staff ? "Reassign Staff" : "Assign Staff"}
-  </button>
-)}
-      {/* 3. PACKED: Review & Approve */}
+    <div className="flex justify-end gap-2">
+      {/* 2. LOGISTICS CONTROL: Assignment */}
+      {/* Show Assign/Reassign if the order is still in early stages */}
+      {(task.status === "PENDING" || task.status === "PACKING") && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedTask(task);
+          }}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+        >
+          {task.staff ? "Reassign" : "Assign Staff"}
+        </button>
+      )}
+
+      {/* 3. QUALITY GATE: Review & Approve */}
+      {/* Show Audit button only if staff has finished packing successfully */}
       {task.status === "PACKED" && (
         <button
           onClick={(e) => {
             e.stopPropagation();
-            navigate(`/manager/order/${task.id}`);
+            navigate(`/manager/order-review/${task.id}`);
           }}
-          className="bg-green-600 text-white px-3 py-1 rounded text-xs"
+          className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-black shadow-md flex items-center gap-1"
         >
-          Review & Approve
+          AUDIT & SHIP
         </button>
       )}
-    </>
+
+      {/* 4. COMPLETED STATE */}
+      {task.status === "SHIPPED" && (
+        <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest">
+          ✔ Dispatched
+        </span>
+      )}
+    </div>
   )}
 </td>
                     

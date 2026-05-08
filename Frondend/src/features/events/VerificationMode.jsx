@@ -83,50 +83,62 @@ const ProductVerification = ({ product, onComplete, onBack }) => {
     }));
   };
 
-  const handleSubmit = async () => {
-    if (!formData.batch_lot.trim()) {
-      toast.error("Batch Number required");
-      return;
-    }
+ const handleSubmit = async () => {
+   console.log("Submit process started..."); // <--- Check if this appears in console
+  
+  // If product is undefined, this will stop here
+  if (!product) {
+    console.error("Product prop is missing!");
+    return;
+  }
 
+  // Check if loading is stuck
+  if (loading) {
+    console.log("Currently loading, skipping click.");
+    return;
+  }
     setLoading(true);
-    const config = getAuthHeaders();
-
+    
     try {
-      // Correcting ID resolution for the payload
-      const pId = product.product_details?.id || product.id;
-      const taskId = product.task_id || product.assignment_id || product.id;
+      // Logic Check
+      const pId = product.product_details?.id || product.id || product.product;
+      const taskId = product.task_id || product.assignment_id;
+      
+      console.log("IDs found:", { pId, taskId });
+
+      if (!taskId) {
+        throw new Error("Task ID is missing. Cannot submit.");
+      }
+
+      const config = getAuthHeaders();
 
       // 1. Submit Detailed Verification
-      const verifyPayload = {
+      console.log("Sending POST to verify-products...");
+      await axios.post(`${API}/api/inventory/verify-products/`, {
         product: pId,
         assignment_id: taskId,
         active_type: activeType,
         ...formData
-      };
-      await axios.post(`${API}/api/inventory/verify-products/`, verifyPayload, config);
+      }, config);
 
-      // 2. Update Order Assignment Status
-      // If product is expired, this will trigger the FAILED status in your JSON
-      const taskPayload = {
+      // 2. Update Order Assignment
+      console.log("Sending PATCH to staff tasks...");
+      await axios.patch(`${API}/api/orders/staff/tasks/${taskId}/inspect/`, {
         is_passed: formData.is_passed,
         comments: formData.comments || (isPastDate(product.expiry_date) ? "Product Expired" : ""),
         status: formData.is_passed ? 'PACKED' : 'PICKING'
-      };
-      
-      await axios.patch(`${API}/api/orders/staff/tasks/${taskId}/inspect/`, taskPayload, config);
+      }, config);
 
-      toast.success(formData.is_passed ? "Verified & Ready" : "Issue Logged");
+      toast.success("Success!");
       if (onComplete) onComplete();
 
     } catch (err) {
-      console.error(err);
-      toast.error(err.response?.data?.detail || err.response?.data?.error || "Submission Failed");
+      console.error("FULL ERROR:", err);
+      toast.error(err.response?.data?.detail || "Execution Error");
     } finally {
       setLoading(false);
     }
   };
-
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 text-slate-700">
       <div className="max-w-6xl mx-auto bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
@@ -238,7 +250,7 @@ const ProductVerification = ({ product, onComplete, onBack }) => {
             <button onClick={onBack} className="px-6 py-2 border rounded-md font-bold text-sm hover:bg-slate-50 transition-colors">Back</button>
             <button
               disabled={loading}
-              onClick={handleSubmit}
+              onClick={()=>handleSubmit()}
               className={`px-8 py-2 text-white rounded-md font-bold text-sm shadow-lg transition-all transform active:scale-95 ${
                 loading ? 'bg-slate-400' : formData.is_passed ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'
               }`}

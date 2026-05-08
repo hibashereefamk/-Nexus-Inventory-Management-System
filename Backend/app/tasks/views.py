@@ -272,9 +272,10 @@ class ManagerAssignmentListView(APIView):
 
             response.append({
                 "id": first.id,
-                "order_number": order_number,
+                 "order_number": order_number,
                 "department": first.department.name if first.department else None,
                 "status": first.status,
+                "verification_status": first.verification_status, # <--- ADD THIS LINE
                 "deadline": first.deadline_date if first.deadline_date else None,
                 "staff": first.staff.username if first.staff else None,
                 "products": [
@@ -331,24 +332,26 @@ class ManagerStaffFulfillmentView(APIView):
             "staff": UserWorkloadSerializer(staff_list, many=True).data
         })
     
-class ManagerApproveOrderView(generics.UpdateAPIView):
+class ManagerApproveOrderView(generics.RetrieveUpdateAPIView):
     queryset = OrderAssignment.objects.all()
     serializer_class = UpdateStatusSerializer
     permission_classes = [IsAuthenticated]
 
     def perform_update(self, serializer):
         assignment = self.get_object()
-        decision = self.request.data.get("decision")  # APPROVED / REJECTED
-        remarks = self.request.data.get("remarks", "") # Capture manager's note
+        decision = self.request.data.get("decision")
+        remarks = self.request.data.get("remarks", "")
 
-        # ✅ Call model method with the new remarks argument
+        # ✅ Execute the decision logic
         assignment.manager_decision(decision, remarks=remarks)
 
-        # Notify staff
+        # ✅ FIX: Use assignment.order.order_number
+        # Also ensure department is passed to avoid the previous IntegrityError
         Notification.objects.create(
             title="Manager Decision",
             message=f"Order {assignment.order.order_number} {decision.lower()}: {remarks}",
             user=assignment.staff,
+            department=assignment.department,
             notification_type='READY_TO_SHIP' if decision == 'APPROVED' else 'REJECTED'
         )
     

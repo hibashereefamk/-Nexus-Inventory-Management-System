@@ -30,7 +30,8 @@ import SystemLogsTable from "./features/events/SystemLogsTable.jsx";
 import { NotificationProvider } from "./hooks/useTaskNotifications.jsx";
 import ProductList from "./features/events/ProductList.jsx";
 import StaffTasksView from "./features/events/StaffTasksView.jsx";
-import OrderDetailView from "./features/events/OrderDetailView.jsx";
+import ManagerOrderReview from "./features/events/OrderDetailView.jsx";
+
 
 function App() {
   return (
@@ -61,7 +62,7 @@ function App() {
     <Route path="/manager/staff-tasks" element={<ManagerTasksView/>}/>
     <Route path="/manager/reports" element ={<ManagerEscalateReport/>}/>
     <Route path="/manager/performance" element={<ManagerPerformance/>}/>
-    <Route path="/manager/order/:id" element={<OrderDetailView/>}/>
+    <Route path="/manager/order-review/:taskId" element={<ManagerOrderReview/>}/>
     <Route path="/help" element={<HelpPage/>}/>
     <Route path="/profile" element={<ProfilePage/>}/>
     <Route path="/admin/operations" element={<OperationsView/>}/>

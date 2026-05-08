@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { 
-  FiPackage, FiClock, FiCheckCircle, FiSearch,FiXCircle 
+  FiPackage, FiClock, FiCheckCircle, FiSearch,FiXCircle ,
 } from "react-icons/fi";
 import { toast, Toaster } from "react-hot-toast";
 import ProductVerification from "./VerificationMode";
@@ -468,6 +468,15 @@ if (!isSelectingProduct && activeVerificationTask?.current_product) {
       {task.status === "PACKED" && task.approval_status === "PENDING" && (
         <span className="inline-flex items-center px-3 py-1 bg-amber-50 text-amber-600 text-[10px] font-black uppercase rounded-full border border-amber-100">
           Waiting Approval
+        </span>
+      )}
+      {task.status === "PACKED" && task.approval_status === "APPROVED" && (
+        <span className="text-emerald-600 font-black text-[10px] uppercase">
+          ship
+        </span>
+      )}{task.status === "PACKED" && task.approval_status === "REJECTED" && (
+        <span className="px-4 py-1.5 bg-red-600 text-white text-xs font-bold rounded shadow-sm hover:bg-red-700 transition-colors">
+          Rejected by manager 
         </span>
       )}
       

@@ -22,9 +22,9 @@ urlpatterns = [
     path('manager/assignments/<int:pk>/assign-staff/', ManagerAssignStaffView.as_view(), name='manager-assign-staff'),
     path('manager/fulfillment-data/', ManagerStaffFulfillmentView.as_view(), name='manager-fulfillment-data'),
     path('manager/departments/', DepartmentListView.as_view(), name='department-list'),
-    path('manager/app-shipping/', ManagerApproveOrderView.as_view(), name='manager-app-shipping'),
+    # urls.py
+    path('manager/approve-order/<int:pk>/', ManagerApproveOrderView.as_view(), name='manager-app-shipping'),
 
-    # --- STAFF ENDPOINTS ---
     path('staff/tasks/', StaffDashboardTasksView.as_view(), name='staff-tasks'),
     path('staff/tasks/<int:pk>/', StaffTaskDetailView.as_view(), name='staff-task-detail'),
     path('staff/update-task/<int:pk>/', StaffUpdateTaskStatusView.as_view(), name='staff-task-update'),

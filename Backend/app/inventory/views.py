@@ -221,12 +221,10 @@ class VerificationViewSet(viewsets.ModelViewSet):
         return Response(results)
 
     def perform_create(self, serializer):
-        # 1. Capture the instance
         instance = serializer.save(verified_by=self.request.user)
         product = instance.product
         today = timezone.now().date()
         
-        # Priority: Get assignment_id from POST data
         assignment_id = self.request.data.get('assignment_id')
         assignment = None
         if assignment_id:
@@ -235,7 +233,7 @@ class VerificationViewSet(viewsets.ModelViewSet):
         all_checks_passed = True
         auto_comment = "" 
 
-        # 2. Logic to determine if it passed based on model type
+        # --- CATEGORY SPECIFIC LOGIC ---
         if isinstance(instance, FoodVerification):
             checks = [instance.temp_chain_ok, instance.packaging_sealed, instance.fssai_verified]
             if product.expiry_date and product.expiry_date < today:
@@ -252,28 +250,34 @@ class VerificationViewSet(viewsets.ModelViewSet):
             if not all(checks):
                 all_checks_passed = False
 
-        # ... (Furniture/Stationery logic) ...
+        # --- ADDED FURNITURE LOGIC ---
+        elif isinstance(instance, FurnitureVerification):
+            checks = [instance.structural_ok, instance.parts_complete, instance.finish_no_scratches]
+            if not all(checks):
+                all_checks_passed = False
+                auto_comment = "FAILED: Structural, finish, or parts check failed. "
 
-        # 3. CRITICAL SYNC: Update both Product and Assignment
+        # --- ADDED STATIONERY LOGIC ---
+        elif isinstance(instance, StationeryVerification):
+            checks = [instance.quantity_reconciled, instance.paper_not_damaged, instance.ink_lead_test_passed]
+            if not all(checks):
+                all_checks_passed = False
+                auto_comment = "FAILED: Quantity or quality reconciliation failed. "
+
+        # --- 3. FINAL SYNC ---
         if all_checks_passed:
             instance.is_passed = True
-            product.status = 'IN_STOCK' # It's good, keep/return to stock
-            
+            product.status = 'IN_STOCK'
             if assignment:
-                # Trigger the model logic you wrote: verification_status -> PASSED
                 assignment.process_verification('PASSED') 
         else:
             instance.is_passed = False
-            # If verification fails, the product MUST be DAMAGED in the ERP
             product.status = 'DAMAGED' 
             instance.comments = f"{auto_comment} {instance.comments or ''}".strip()
             
             if assignment:
-                # Trigger the model logic you wrote: verification_status -> FAILED
-                # This also creates the IssueReport automatically!
                 assignment.process_verification('FAILED', description=instance.comments)
             else:
-                # Fallback: Create report if no assignment context exists
                 IssueReport.objects.create(
                     product=product,
                     reported_by=self.request.user,
@@ -284,7 +288,7 @@ class VerificationViewSet(viewsets.ModelViewSet):
                 )
 
         instance.save()
-        product.save() # This updates the status you see in the JSON
+        product.save()# This updates the status you see in the JSON
 
 
         

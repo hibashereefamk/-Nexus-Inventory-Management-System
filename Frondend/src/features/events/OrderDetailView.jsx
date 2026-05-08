@@ -1,110 +1,206 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import React, { useEffect, useState } from 'react'
 
-const API = 'http://127.0.0.1:8000';
+import { useParams, useNavigate } from 'react-router-dom'
 
-function OrderDetailView() {
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const [order, setOrder] = useState(null);
-  const [loading, setLoading] = useState(true);
+import axios from 'axios'
 
-  const getHeaders = () => ({
+import { toast } from 'react-hot-toast'
+
+import {
+  FiCheckCircle,
+  FiXCircle,
+  FiTruck,
+  FiAlertTriangle
+} from 'react-icons/fi'
+
+const API = 'http://127.0.0.1:8000'
+
+const ManagerOrderReview = () => {
+  const { taskId } = useParams()
+
+  const navigate = useNavigate()
+
+  const [task, setTask] = useState(null)
+
+  const [verification, setVerification] = useState(null)
+
+  const [remarks, setRemarks] = useState('')
+
+  const [loading, setLoading] = useState(true)
+
+  const getAuthHeaders = () => ({
     headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
-  });
+  })
 
   useEffect(() => {
-    fetchOrderDetail();
-  }, [id]);
+    // 1. Guard clause: Don't fetch if taskId is missing
 
-  const fetchOrderDetail = async () => {
-    try {
-      // You may need to create a specific detail endpoint in Django for this
-      const res = await axios.get(`${API}/api/orders/staff/tasks/${id}/`, getHeaders());
-      setOrder(res.data);
-    } catch (err) {
-      console.error("Failed to fetch", err);
-    } finally {
-      setLoading(false);
+    if (!taskId || taskId === 'undefined') {
+      console.error('Task ID is missing from URL')
+
+      return
     }
-  };
 
-  const handleDecision = async (decision) => {
-    try {
-      await axios.patch(`${API}/api/orders/manager/app-shipping/`, {
-        id: order.id,
-        decision: decision, // 'APPROVED' or 'REJECTED'
-        remarks: "Verified by Manager"
-      }, getHeaders());
-      alert(`Order ${decision}`);
-      navigate('/manager/tasks');
-    } catch (err) {
-      alert("Action failed");
+    // Safer extraction in ManagerOrderReview
+const loadData = async () => {
+  try {
+    setLoading(true);
+    const taskRes = await axios.get(`${API}/api/orders/manager/approve-order/${taskId}/`, getAuthHeaders());
+    setTask(taskRes.data);
+
+    // Look for product ID in the nested order object
+    const pId = taskRes.data.order?.product || taskRes.data.product_id;
+    
+    if (pId) {
+      const historyRes = await axios.get(`${API}/api/inventory/verify-products/history/${pId}/`, getAuthHeaders());
+      setVerification(historyRes.data[0]); 
     }
-  };
+  } catch (err) {
+    // If it's a 404, this toast will trigger
+    toast.error("Order Assignment not found in database.");
+  }
+ finally {
+        setLoading(false)
+      }
+    }
 
-  if (loading) return <div className="p-10 text-center">Loading Detailed Info...</div>;
+    loadData()
+  }, [taskId])
+
+  const handleDecision = async decision => {
+    try {
+      await axios.patch(
+        `${API}/api/orders/manager/approve-order/${taskId}/`,
+        {
+          decision: decision, // 'APPROVED' or 'REJECTED'
+
+          remarks: remarks
+        },
+        getAuthHeaders()
+      )
+
+      toast.success(`Order ${decision.toLowerCase()} successfully`)
+
+      navigate('/manager/tasks') // Go back to list
+    } catch (err) {
+      toast.error('Error submitting decision')
+    }
+  }
+
+  if (loading)
+    return <div className='p-10 text-center'>Loading Audit Data...</div>
 
   return (
-    <div className="p-8 bg-white max-w-4xl mx-auto my-10 rounded-2xl shadow-lg border">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Order: {order.order_number}</h1>
-        <StatusBadge status={order.status} />
+    <div className='p-8 max-w-4xl mx-auto space-y-6'>
+      <div className='flex justify-between items-center'>
+        <h1 className='text-2xl font-bold'>
+          Audit Review: #{task.order_number}
+        </h1>
+
+        <span
+          className={`px-4 py-1 rounded-full text-sm font-bold ${
+            verification?.is_passed
+              ? 'bg-green-100 text-green-700'
+              : 'bg-red-100 text-red-700'
+          }`}
+        >
+          {verification?.is_passed
+            ? 'VERIFICATION PASSED'
+            : 'VERIFICATION FAILED'}
+        </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-8 mb-8">
-        <div className="space-y-2">
-          <p className="text-gray-500 text-sm">Assigned Staff</p>
-          <p className="font-semibold">{order.staff_username || 'N/A'}</p>
-        </div>
-        <div className="space-y-2">
-          <p className="text-gray-500 text-sm">Department</p>
-          <p className="font-semibold">{order.department_name}</p>
+      {/* 1. Checklist Audit */}
+
+      <div className='bg-white p-6 rounded-xl border shadow-sm'>
+        <h2 className='text-sm font-black text-gray-400 uppercase mb-4'>
+          QC Checklist Results
+        </h2>
+
+        <div className='grid grid-cols-2 md:grid-cols-3 gap-4'>
+          {verification &&
+            Object.entries(verification).map(([key, value]) => {
+              if (typeof value === 'boolean' && key !== 'is_passed') {
+                return (
+                  <div
+                    key={key}
+                    className='flex items-center gap-2 p-2 border rounded'
+                  >
+                    {value ? (
+                      <FiCheckCircle className='text-green-500' />
+                    ) : (
+                      <FiXCircle className='text-red-500' />
+                    )}
+
+                    <span className='text-xs font-bold text-gray-700'>
+                      {key.replace(/_/g, ' ').toUpperCase()}
+                    </span>
+                  </div>
+                )
+              }
+
+              return null
+            })}
         </div>
       </div>
 
-      {/* CASE 1: SUCCESSFUL PACKING - SHOW SHIPPING APPROVAL */}
-      {order.status === 'PACKED' && (
-        <div className="bg-green-50 p-6 rounded-xl border border-green-200">
-          <h3 className="text-green-800 font-bold mb-2">Request for Shipment</h3>
-          <p className="text-sm text-green-700 mb-4">
-            Staff has verified all items. Ready for final manager dispatch.
+      {/* 2. Staff Comments / Issue Report */}
+
+      {!verification?.is_passed && (
+        <div className='bg-red-50 p-6 rounded-xl border border-red-200'>
+          <h2 className='text-red-800 font-bold flex items-center gap-2 mb-2'>
+            <FiAlertTriangle /> Damage Report Details
+          </h2>
+
+          <p className='text-sm text-red-900 bg-white p-3 rounded border border-red-100 italic'>
+            "{verification?.comments || 'No comments provided by staff.'}"
           </p>
-          <div className="flex gap-4">
-            <button 
-              onClick={() => handleDecision('APPROVED')}
-              className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700"
-            >
-              Approve & Send to Shipping
-            </button>
-            <button 
-              onClick={() => handleDecision('REJECTED')}
-              className="border border-red-600 text-red-600 px-6 py-2 rounded-lg hover:bg-red-50"
-            >
-              Reject Verification
-            </button>
-          </div>
         </div>
       )}
 
-      {/* CASE 2: FAILED PACKING - SHOW DAMAGE REPORT */}
-      {order.status === 'FAILED' && (
-        <div className="bg-red-50 p-6 rounded-xl border border-red-200">
-          <h3 className="text-red-800 font-bold mb-2">Damage / Issue Report</h3>
-          <div className="bg-white p-4 rounded border mb-4">
-            <p className="text-sm font-bold text-gray-500">Staff Comments:</p>
-            <p className="text-gray-800 italic">"{order.comments || "No comments provided"}"</p>
-          </div>
-          <button 
-             onClick={() => alert("Escalated to Admin")}
-             className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700"
-          >
-            Escalate to Admin for Resolution
-          </button>
+      {/* 3. Decision Controls */}
+
+      <div className='bg-slate-900 p-6 rounded-xl text-white'>
+        <label className='block text-xs font-bold mb-2 uppercase text-slate-400'>
+          Manager's Decision Remarks
+        </label>
+
+        <textarea
+          value={remarks}
+          onChange={e => setRemarks(e.target.value)}
+          className='w-full bg-slate-800 border border-slate-700 rounded p-3 text-sm mb-4 outline-none focus:ring-1 focus:ring-indigo-500'
+          placeholder='Add instructions for staff or admin...'
+        />
+
+        <div className='flex gap-3'>
+          {verification?.is_passed ? (
+            <button
+              onClick={() => handleDecision('APPROVED')}
+              className='flex-1 bg-green-600 hover:bg-green-700 py-3 rounded-lg font-bold flex items-center justify-center gap-2'
+            >
+              <FiTruck /> APPROVE & SHIP PRODUCT
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => handleDecision('REJECTED')}
+                className='flex-1 bg-red-600 hover:bg-red-700 py-3 rounded-lg font-bold'
+              >
+                REJECT & REQUIRE REWORK
+              </button>
+
+              <button
+                className='flex-1 bg-amber-600 hover:bg-amber-700 py-3 rounded-lg font-bold'
+                onClick={() => toast('Escalated to Admin (Logic needed)')}
+              >
+                ESCALATE TO ADMIN
+              </button>
+            </>
+          )}
         </div>
-      )}
+      </div>
     </div>
-  );
+  )
 }
-export default OrderDetailView;
+
+export default ManagerOrderReview
