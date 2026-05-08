@@ -200,25 +200,24 @@ class VerificationViewSet(viewsets.ModelViewSet):
         }
         return Response(data)
 
-    @action(detail=False, methods=['get'], url_path='history/(?P<product_id>\d+)')
-    def product_history(self, request, product_id=None):
-        """Shows every check done on a specific product with full details."""
-        food = FoodVerification.objects.filter(product_id=product_id)
-        elec = ElectronicsVerification.objects.filter(product_id=product_id)
-        furn = FurnitureVerification.objects.filter(product_id=product_id)
-        stat = StationeryVerification.objects.filter(product_id=product_id)
-
-        # Merge into one list
-        results = (
-            FoodVerificationSerializer(food, many=True).data +
-            ElectronicsVerificationSerializer(elec, many=True).data +
-            FurnitureVerificationSerializer(furn, many=True).data +
-            StationeryVerificationSerializer(stat, many=True).data
-        )
+    @action(detail=False, methods=['get'], url_path='get-details/(?P<v_id>\d+)')
+    def get_details(self, request, v_id=None):
+        """Finds a specific verification record by ID across all categories."""
         
-        # Sort by latest first
-        results.sort(key=lambda x: x['timestamp'], reverse=True)
-        return Response(results)
+        # Define the models and their serializers
+        models_to_search = [
+            (FoodVerification, FoodVerificationSerializer),
+            (ElectronicsVerification, ElectronicsVerificationSerializer),
+            (FurnitureVerification, FurnitureVerificationSerializer),
+            (StationeryVerification, StationeryVerificationSerializer),
+        ]
+
+        for model, serializer_class in models_to_search:
+            instance = model.objects.filter(id=v_id).first()
+            if instance:
+                return Response(serializer_class(instance).data)
+
+        return Response({"error": "Verification record not found"}, status=404)
 
     def perform_create(self, serializer):
         instance = serializer.save(verified_by=self.request.user)
