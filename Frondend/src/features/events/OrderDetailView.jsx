@@ -1,196 +1,397 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { toast } from 'react-hot-toast';
-import { FiCheckCircle, FiXCircle, FiTruck, FiAlertTriangle, FiSend } from 'react-icons/fi';
+import { toast, Toaster } from 'react-hot-toast';
+import {
+  FiCheckCircle,
+  FiXCircle,
+  FiTruck,
+  FiAlertTriangle
+} from 'react-icons/fi';
 
 const API = 'http://127.0.0.1:8000';
 
 const ManagerOrderReview = () => {
+
   const { taskId } = useParams();
   const navigate = useNavigate();
+
   const [task, setTask] = useState(null);
-  const [verification, setVerification] = useState(null);
+  const [verifications, setVerifications] = useState([]);
   const [remarks, setRemarks] = useState('');
   const [loading, setLoading] = useState(true);
 
   const getAuthHeaders = () => ({
-    headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem('access_token')}`
+    }
   });
 
-  // FIX: Define loadData OUTSIDE useEffect so it's cleaner, then call it INSIDE
-  const loadData = async () => {
-    try {
-      setLoading(true);
+  const loadData = useCallback(async () => {
 
-      // 1. Fetch Task Details
-      const taskRes = await axios.get(
-        `${API}/api/orders/manager/approve-order/${taskId}/`,
+  try {
+
+    setLoading(true);
+
+    // FETCH TASK
+    const taskRes = await axios.get(
+      `${API}/api/orders/manager/assignments/`,
+      getAuthHeaders()
+    );
+
+    const foundTask = taskRes.data.find(
+      (t) => t.id === parseInt(taskId)
+    );
+
+    setTask(foundTask);
+
+    if (!foundTask) {
+      toast.error("Task not found");
+      return;
+    }
+
+    // FETCH ASSIGNMENT VERIFICATION
+
+    try {
+
+      const verificationRes = await axios.get(
+        `${API}/api/inventory/assignment-verification/${taskId}/`,
         getAuthHeaders()
       );
-      setTask(taskRes.data);
 
-      // 2. Extract Verification ID
-      // Fallback to 65 only for testing; in production, use the actual ID from task
-      // 2. Determine which Verification ID to fetch
-// Look at where "60" is coming from in your task response
-const verificationId = taskRes.data?.verification_id || taskRes.data?.id; 
-
-if (verificationId) {
-    const detailRes = await axios.get(
-        `${API}/api/inventory/verify-products/get-details/${verificationId}/`,
-        getAuthHeaders()
-    );
-    console.log("Detailed Verification Data:", detailRes.data); // Debug this!
-    setVerification(detailRes.data);
-} else {
-        console.warn("No verification ID found for this task");
-      }console.log("Current Task State:", task);
-console.log("Current Verification State:", verification);
+      setVerifications([
+        {
+          product: foundTask.products[0],
+          verification: verificationRes.data
+        }
+      ]);
 
     } catch (err) {
-      console.error("Fetch Error:", err);
-      toast.error('Failed to load audit data');
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  useEffect(() => {
-    if (taskId && taskId !== 'undefined') {
-      loadData();
+      console.error("Verification fetch failed:", err);
+
+      setVerifications([
+        {
+          product: foundTask.products[0],
+          verification: null
+        }
+      ]);
     }
-  }, [taskId]);
+
+  } catch (err) {
+
+    console.error(err);
+    toast.error("Failed to load verification audit.");
+
+  } finally {
+
+    setLoading(false);
+
+  }
+
+}, [taskId]);
+
+useEffect(() => {
+  loadData();
+}, [loadData]);
 
   const handleDecision = async (decision) => {
+
     try {
-      await axios.patch(`${API}/api/orders/manager/approve-order/${taskId}/`, {
-        decision: decision, 
-        remarks: remarks
-      }, getAuthHeaders());
-      
-      toast.success(`Order ${decision.toLowerCase()} successfully`);
-      navigate('/manager/tasks'); 
+
+      await axios.patch(
+        `${API}/api/orders/manager/approve-order/${taskId}/`,
+        {
+          decision,
+          remarks
+        },
+        getAuthHeaders()
+      );
+
+      toast.success(`Order ${decision}`);
+      navigate('/manager/staff-tasks');
+
     } catch (err) {
-      toast.error("Error submitting decision");
+
+      toast.error("Failed to submit decision.");
     }
   };
 
-  const escalateToAdmin = async () => {
-    try {
-      // Ensure we have a product ID from the task object
-      const productId = task?.order?.product || task?.product_id;
+  const allPassed = verifications.every(
+    item => item.verification?.is_passed
+  );
 
-      await axios.post(`${API}/api/inventory/create-issue/`, {
-        product: productId,
-        description: `MANAGER ESCALATION for Order ${task?.order?.order_number}: ${remarks}`,
-        type: 'DAMAGE',
-        urgency: 'HIGH'
-      }, getAuthHeaders());
-      
-      toast.success("Issue escalated to Admin.");
-      navigate('/manager/tasks');
-    } catch (err) {
-      toast.error("Escalation failed.");
-    }
-  };
-
-  if (loading) return <div className="p-10 text-center font-bold">Loading Audit Data...</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        Loading Verification Audit...
+      </div>
+    );
+  }
 
   return (
-    <div className="p-8 max-w-4xl mx-auto space-y-6 bg-gray-50 min-h-screen">
-      <div className="flex justify-between items-center bg-white p-6 rounded-xl border shadow-sm">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">
-            Audit Review: #{task?.order?.order_number || taskId}
+    <div className="min-h-screen bg-slate-50 p-6">
+
+      <Toaster position="top-right" />
+
+      <div className="max-w-6xl mx-auto space-y-6">
+
+        {/* HEADER */}
+
+        <div className="bg-white rounded-2xl p-6 border shadow-sm">
+
+          <h1 className="text-2xl font-black">
+            Order Audit Review
           </h1>
-          <p className="text-sm text-gray-500 italic">
-            Reviewing verification submitted by Staff ID: {verification?.verified_by || "Unknown"}
+
+          <p className="text-sm text-slate-500 mt-1">
+            {task?.order_number}
           </p>
-        </div>
-        <div className={`px-4 py-2 rounded-lg text-sm font-black border ${verification?.is_passed ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
-          {verification?.is_passed ? "PASSED QC" : "FAILED QC"}
-        </div>
-      </div>
 
-      {/* 1. QC Checklist Audit */}
-      <div className="bg-white p-6 rounded-xl border shadow-sm">
-        <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 border-b pb-2">Technical Checklist Results</h2>
-        {verification ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {Object.entries(verification).map(([key, value]) => {
-              // Only show boolean fields (the actual checks)
-              if (typeof value === 'boolean' && key !== 'is_passed') {
-                return (
-                  <div key={key} className="flex items-center justify-between p-3 border rounded-lg bg-slate-50">
-                    <span className="text-[10px] font-bold text-slate-600 uppercase">{key.replace(/_/g, ' ')}</span>
-                    {value ? <FiCheckCircle className="text-emerald-500"/> : <FiXCircle className="text-rose-500"/>}
+        </div>
+
+        {/* PRODUCTS */}
+
+        {verifications.map((item, index) => {
+
+          const product = item.product;
+          const verification = item.verification;
+
+          return (
+
+            <div
+              key={index}
+              className="bg-white rounded-2xl border shadow-sm overflow-hidden"
+            >
+
+              {/* PRODUCT HEADER */}
+
+              <div className="p-5 border-b bg-slate-50 flex justify-between items-center">
+
+                <div>
+
+                  <h2 className="text-lg font-black">
+                    {product.name}
+                  </h2>
+
+                  <p className="text-xs text-slate-500">
+                    Product ID: {product.id}
+                  </p>
+
+                </div>
+
+                <div
+                  className={`px-4 py-2 rounded-xl text-xs font-black
+                  ${
+                    verification?.is_passed
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-red-100 text-red-700'
+                  }`}
+                >
+                  {verification?.is_passed
+                    ? 'PASSED'
+                    : 'FAILED'}
+                </div>
+
+              </div>
+
+              {/* NO VERIFICATION */}
+
+              {!verification && (
+
+                <div className="p-6 text-center text-slate-400">
+
+                  No verification record found
+
+                </div>
+
+              )}
+
+              {/* VERIFICATION */}
+
+              {verification && (
+
+                <div className="p-6 space-y-6">
+
+                  {/* CHECKS */}
+
+                  <div>
+
+                    <h3 className="text-xs font-black uppercase text-slate-400 mb-3">
+                      Verification Checks
+                    </h3>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+                      {Object.entries(
+                        verification.verification_checks || {}
+                      ).map(([key, value]) => (
+
+                        <div
+                          key={key}
+                          className={`p-4 rounded-xl border flex items-center justify-between
+                          ${
+                            value
+                              ? 'bg-emerald-50 border-emerald-100'
+                              : 'bg-red-50 border-red-100'
+                          }`}
+                        >
+
+                          <span className="text-xs font-bold uppercase">
+                            {key.replace(/_/g, ' ')}
+                          </span>
+
+                          {value
+                            ? <FiCheckCircle className="text-emerald-500" />
+                            : <FiXCircle className="text-red-500" />
+                          }
+
+                        </div>
+
+                      ))}
+
+                    </div>
+
                   </div>
-                );
-              }
-              return null;
-            })}
-          </div>
-        ) : (
-          <div className="p-4 bg-amber-50 text-amber-700 rounded-lg text-sm flex items-center gap-2">
-            <FiAlertTriangle /> No detailed digital checklist found.
-          </div>
-        )}
-      </div>
 
-      {/* 2. Staff Remarks */}
-      <div className="bg-white p-6 rounded-xl border shadow-sm">
-        <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Staff Notes</h2>
-        <p className="text-sm text-slate-700 italic border-l-4 border-indigo-500 pl-4 py-2 bg-indigo-50/30 rounded-r-lg">
-          {verification?.comments || "No comments provided by staff."}
-        </p>
-      </div>
+                  {/* SYSTEM CHECKS */}
 
-      {/* 3. Decision Controls */}
-      <div className="bg-slate-900 p-8 rounded-2xl text-white shadow-xl">
-        <label className="block text-[10px] font-black mb-3 uppercase text-slate-400 tracking-widest">Manager Audit Remarks</label>
-        <textarea 
-          value={remarks}
-          onChange={(e) => setRemarks(e.target.value)}
-          className="w-full bg-slate-800 border border-slate-700 rounded-xl p-4 text-sm mb-6 outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-slate-200"
-          placeholder="Add final instructions or reasons for rejection..."
-          rows={3}
-        />
-        
-        <div className="flex gap-4">
-          {verification?.is_passed ? (
-            <>
-              <button 
-                onClick={() => handleDecision('APPROVED')}
-                className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors"
-              >
-                <FiTruck /> APPROVE & RELEASE
-              </button>
-              <button 
-                onClick={() => handleDecision('REJECTED')}
-                className="px-8 bg-slate-700 hover:bg-rose-600 py-4 rounded-xl font-bold transition-all"
-              >
-                REJECT
-              </button>
-            </>
-          ) : (
-            <>
-              <button 
-                onClick={() => handleDecision('REJECTED')}
-                className="flex-1 bg-rose-600 hover:bg-rose-700 py-4 rounded-xl font-bold flex items-center justify-center gap-2"
-              >
-                <FiXCircle /> REJECT ORDER
-              </button>
-              <button 
-                onClick={escalateToAdmin}
-                className="flex-1 bg-amber-500 hover:bg-amber-600 py-4 rounded-xl font-bold flex items-center justify-center gap-2 text-slate-900"
-              >
-                <FiSend /> ESCALATE TO ADMIN
-              </button>
-            </>
+                  <div>
+
+                    <h3 className="text-xs font-black uppercase text-slate-400 mb-3">
+                      ERP System Checks
+                    </h3>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                      {Object.entries(
+                        verification.system_checks || {}
+                      ).map(([key, value]) => (
+
+                        <div
+                          key={key}
+                          className="p-4 rounded-xl border bg-slate-50"
+                        >
+
+                          <p className="text-xs font-black uppercase text-slate-500">
+                            {key.replace(/_/g, ' ')}
+                          </p>
+
+                          <p className="mt-2 text-sm font-semibold">
+
+                            {typeof value === 'boolean'
+                              ? value
+                                ? 'PASS'
+                                : 'FAILED'
+                              : String(value)}
+
+                          </p>
+
+                        </div>
+
+                      ))}
+
+                    </div>
+
+                  </div>
+
+                  {/* COMMENTS */}
+
+                  <div className="bg-indigo-50 border-l-4 border-indigo-500 p-4 rounded-r-xl">
+
+                    <p className="text-sm italic text-slate-700">
+                      "{verification.comments || 'No comments'}"
+                    </p>
+
+                  </div>
+
+                  {/* META */}
+
+                  <div className="text-xs text-slate-500 space-y-1">
+
+                    <p>
+                      Verified By:
+                      <span className="font-bold ml-1">
+                        {verification.verified_by}
+                      </span>
+                    </p>
+
+                    <p>
+                      Verification Time:
+                      <span className="font-bold ml-1">
+                        {new Date(
+                          verification.timestamp
+                        ).toLocaleString()}
+                      </span>
+                    </p>
+
+                  </div>
+
+                </div>
+
+              )}
+
+            </div>
+
+          );
+        })}
+
+        {/* MANAGER DECISION */}
+
+        <div className="bg-slate-900 p-8 rounded-3xl text-white">
+
+          <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">
+            Manager Review
+          </h3>
+
+          <textarea
+            value={remarks}
+            onChange={(e) => setRemarks(e.target.value)}
+            rows={4}
+            placeholder="Add remarks..."
+            className="w-full rounded-2xl bg-slate-800 border border-slate-700 p-4 mb-6"
+          />
+
+          <div className="flex gap-4">
+
+            <button
+              onClick={() => handleDecision('APPROVED')}
+              disabled={!allPassed}
+              className={`flex-1 py-4 rounded-2xl font-black
+              ${
+                allPassed
+                  ? 'bg-emerald-600 hover:bg-emerald-500'
+                  : 'bg-slate-700 cursor-not-allowed'
+              }`}
+            >
+              <FiTruck className="inline mr-2" />
+              APPROVE FOR SHIPPING
+            </button>
+
+            <button
+              onClick={() => handleDecision('REJECTED')}
+              className="flex-1 py-4 rounded-2xl font-black bg-red-600 hover:bg-red-500"
+            >
+              REJECT ORDER
+            </button>
+
+          </div>
+
+          {!allPassed && (
+
+            <p className="text-red-400 text-xs mt-4 font-bold text-center">
+
+              Some products failed verification.
+              Order cannot be shipped.
+
+            </p>
+
           )}
+
         </div>
+
       </div>
+
     </div>
   );
 };

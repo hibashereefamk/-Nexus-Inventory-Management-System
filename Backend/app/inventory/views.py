@@ -1,6 +1,7 @@
 from rest_framework import generics, permissions
 from rest_framework.views import APIView
 from app.tasks.models import OrderAssignment
+from .models import Product,IssueReport,Notification, StockLog
 from rest_framework.response import Response
 from rest_framework import status
 from app.accounts.permissions import IsManager,IsStaffFromDepartment,IsSuperAdmin
@@ -13,19 +14,16 @@ from django.db.models import F
 from django.db import transaction
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
+from .models import FoodVerification, FurnitureVerification, ElectronicsVerification, StationeryVerification, IssueReport, Notification
+from app.tasks.models import OrderAssignment
 
 from rest_framework import generics
 from app.accounts.models import User
 from app.accounts.serializers import UserSerializer # Ensure you have a basic UserSerializer
 from app.accounts.permissions import IsManager,IsSuperAdmin
-from rest_framework import viewsets, permissions, status
+
+from rest_framework import status
 from rest_framework.response import Response
-from rest_framework.decorators import action
-from django.shortcuts import get_object_or_404
-from .models import (
-    Product, FoodVerification, ElectronicsVerification,IssueReport,Notification, StockLog, 
-    FurnitureVerification, StationeryVerification, IssueReport
-)
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 
@@ -56,13 +54,8 @@ class Productview(APIView):
             # Allows Managers or Superusers
             return [(IsManager | IsSuperAdmin)()] 
         return [IsStaffFromDepartment()] 
-    def get(self, request, pk=None):
-        if pk:
-            product = get_object_or_404(Product, pk=pk)
-            serializer = ProductSerializer(product)
-            return Response(serializer.data)
-        
-        products = Product.objects.all().order_by('name')
+    def get(self, request):
+        products =Product.objects.all().order_by('name')
         serializer = ProductSerializer(products, many=True)
         return Response(serializer.data)
     def post(self, request):
@@ -112,7 +105,6 @@ class Productview(APIView):
 
                     # Update stock using F() to ensure accuracy at database level
                     product.total_stock = F('total_stock') - qty
-                    product.committed_stock = F('committed_stock') - qty
                     product.save()
                     product.refresh_from_db()
 
@@ -165,28 +157,33 @@ class Productview(APIView):
             return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
 
 
-
-
 class VerificationViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
-    serializer_class = FoodVerificationSerializer # Default fallback
+    serializer_class = FoodVerificationSerializer
 
     def get_queryset(self):
-        # Since we use multiple models, return None or a dummy. 
-        # The 'list' and 'history' methods will handle fetching data.
-        return None
+        return FoodVerification.objects.none()
 
     def get_serializer_class(self):
         if self.request.method == 'POST':
             active_type = self.request.data.get('active_type')
-            if active_type == 'food': return FoodVerificationSerializer
-            if active_type == 'electronics': return ElectronicsVerificationSerializer
-            if active_type == 'furniture': return FurnitureVerificationSerializer
-            if active_type == 'stationery': return StationeryVerificationSerializer
+
+            if active_type == 'food':
+                return FoodVerificationSerializer
+
+            elif active_type == 'electronics':
+                return ElectronicsVerificationSerializer
+
+            elif active_type == 'furniture':
+                return FurnitureVerificationSerializer
+
+            elif active_type == 'stationery':
+                return StationeryVerificationSerializer
+
         return FoodVerificationSerializer
 
     def list(self, request, *args, **kwargs):
-        """Returns all verifications from all tables combined."""
+
         food = FoodVerification.objects.all()
         elec = ElectronicsVerification.objects.all()
         furn = FurnitureVerification.objects.all()
@@ -198,97 +195,275 @@ class VerificationViewSet(viewsets.ModelViewSet):
             "furniture_verifications": FurnitureVerificationSerializer(furn, many=True).data,
             "stationery_verifications": StationeryVerificationSerializer(stat, many=True).data,
         }
+
         return Response(data)
 
-    @action(detail=False, methods=['get'], url_path='get-details/(?P<v_id>\d+)')
-    def get_details(self, request, v_id=None):
-        """Finds a specific verification record by ID across all categories."""
-        
-        # Define the models and their serializers
-        models_to_search = [
-            (FoodVerification, FoodVerificationSerializer),
-            (ElectronicsVerification, ElectronicsVerificationSerializer),
-            (FurnitureVerification, FurnitureVerificationSerializer),
-            (StationeryVerification, StationeryVerificationSerializer),
-        ]
-
-        for model, serializer_class in models_to_search:
-            instance = model.objects.filter(id=v_id).first()
-            if instance:
-                return Response(serializer_class(instance).data)
-
-        return Response({"error": "Verification record not found"}, status=404)
-
     def perform_create(self, serializer):
+
         instance = serializer.save(verified_by=self.request.user)
+
         product = instance.product
         today = timezone.now().date()
-        
+
         assignment_id = self.request.data.get('assignment_id')
+
         assignment = None
+
         if assignment_id:
             assignment = OrderAssignment.objects.filter(id=assignment_id).first()
 
         all_checks_passed = True
-        auto_comment = "" 
+        auto_comment = ""
 
-        # --- CATEGORY SPECIFIC LOGIC ---
+        # FOOD
         if isinstance(instance, FoodVerification):
-            checks = [instance.temp_chain_ok, instance.packaging_sealed, instance.fssai_verified]
+
+            checks = [
+                instance.temp_chain_ok,
+                instance.packaging_sealed,
+                instance.fssai_verified
+            ]
+
             if product.expiry_date and product.expiry_date < today:
                 all_checks_passed = False
-                auto_comment = f"FAILED: Product expired on {product.expiry_date}. "
+                auto_comment = f"FAILED: Product expired on {product.expiry_date}"
+
             if not all(checks):
                 all_checks_passed = False
 
+        # ELECTRONICS
         elif isinstance(instance, ElectronicsVerification):
-            checks = [instance.boot_test_passed, instance.ports_physical_ok]
+
+            checks = [
+                instance.boot_test_passed,
+                instance.ports_physical_ok
+            ]
+
             if product.warranty_expiry and product.warranty_expiry < today:
                 all_checks_passed = False
-                auto_comment = f"FAILED: Warranty expired on {product.warranty_expiry}. "
+                auto_comment = f"FAILED: Warranty expired on {product.warranty_expiry}"
+
             if not all(checks):
                 all_checks_passed = False
 
-        # --- ADDED FURNITURE LOGIC ---
+        # FURNITURE
         elif isinstance(instance, FurnitureVerification):
-            checks = [instance.structural_ok, instance.parts_complete, instance.finish_no_scratches]
+
+            checks = [
+                instance.structural_ok,
+                instance.parts_complete,
+                instance.finish_no_scratches
+            ]
+
             if not all(checks):
                 all_checks_passed = False
-                auto_comment = "FAILED: Structural, finish, or parts check failed. "
+                auto_comment = "FAILED: Furniture QC failed"
 
-        # --- ADDED STATIONERY LOGIC ---
+        # STATIONERY
         elif isinstance(instance, StationeryVerification):
-            checks = [instance.quantity_reconciled, instance.paper_not_damaged, instance.ink_lead_test_passed]
+
+            checks = [
+                instance.quantity_reconciled,
+                instance.paper_not_damaged,
+                instance.ink_lead_test_passed
+            ]
+
             if not all(checks):
                 all_checks_passed = False
-                auto_comment = "FAILED: Quantity or quality reconciliation failed. "
+                auto_comment = "FAILED: Stationery QC failed"
 
-        # --- 3. FINAL SYNC ---
+        # FINAL STATUS
         if all_checks_passed:
+
             instance.is_passed = True
             product.status = 'IN_STOCK'
+
             if assignment:
-                assignment.process_verification('PASSED') 
+                assignment.process_verification('PASSED')
+
         else:
+
             instance.is_passed = False
-            product.status = 'DAMAGED' 
-            instance.comments = f"{auto_comment} {instance.comments or ''}".strip()
-            
+            product.status = 'DAMAGED'
+
+            instance.comments = f"{auto_comment} {instance.comments or ''}"
+
             if assignment:
-                assignment.process_verification('FAILED', description=instance.comments)
+                assignment.process_verification(
+                    'FAILED',
+                    description=instance.comments
+                )
+
             else:
                 IssueReport.objects.create(
                     product=product,
                     reported_by=self.request.user,
                     department=product.department,
-                    type='EXPIRY' if "expired" in auto_comment else 'DAMAGE',
-                    description=f"VERIFICATION FAILED: {instance.comments}",
+                    type='DAMAGE',
+                    description=instance.comments,
                     urgency='HIGH'
                 )
 
         instance.save()
-        product.save()# This updates the status you see in the JSON
+        product.save()
 
+    # ====================================================
+    # PRODUCT VERIFICATION HISTORY
+    # ====================================================
+
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path=r'history/(?P<product_id>\d+)'
+    )
+    def history(self, request, product_id=None):
+
+        verification_history = []
+
+        verification_models = [
+            (FoodVerification, FoodVerificationSerializer, "FOOD"),
+            (ElectronicsVerification, ElectronicsVerificationSerializer, "ELECTRONICS"),
+            (FurnitureVerification, FurnitureVerificationSerializer, "FURNITURE"),
+            (StationeryVerification, StationeryVerificationSerializer, "STATIONERY"),
+        ]
+
+        for model, serializer_class, category in verification_models:
+
+            records = model.objects.filter(
+                product_id=product_id
+            ).order_by('-timestamp')
+
+            serializer = serializer_class(records, many=True)
+
+            for item in serializer.data:
+
+                item['verification_type'] = category
+
+                verification_history.append(item)
+
+        verification_history.sort(
+            key=lambda x: x['timestamp'],
+            reverse=True
+        )
+
+        return Response(verification_history)
+
+    # ====================================================
+    # MANAGER REVIEW DETAILS
+    # ====================================================
+
+    @action(
+    detail=False,
+    methods=['get'],
+    url_path=r'history/(?P<product_id>\d+)'
+)
+    def history(self, request, product_id=None):
+
+        verification_history = []
+
+        verification_models = [
+        (FoodVerification, FoodVerificationSerializer, "FOOD"),
+        (ElectronicsVerification, ElectronicsVerificationSerializer, "ELECTRONICS"),
+        (FurnitureVerification, FurnitureVerificationSerializer, "FURNITURE"),
+        (StationeryVerification, StationeryVerificationSerializer, "STATIONERY"),
+    ]
+
+        for model, serializer_class, category in verification_models:
+
+            records = model.objects.filter(
+            product_id=product_id
+        ).order_by('-timestamp')
+
+            serializer = serializer_class(records, many=True)
+
+            for item in serializer.data:
+
+                verification_checks = {}
+                system_checks = {}
+
+            # =========================
+            # FOOD
+            # =========================
+                if category == "FOOD":
+
+                    verification_checks = {
+                    "temp_chain_ok": item.get("temp_chain_ok"),
+                    "packaging_sealed": item.get("packaging_sealed"),
+                    "fssai_verified": item.get("fssai_verified"),
+                }
+
+                    product = Product.objects.filter(id=product_id).first()
+
+                    system_checks = {
+                    "expiry_check": False if (
+                        product and
+                        product.expiry_date and
+                        product.expiry_date < timezone.now().date()
+                    ) else True,
+
+                        "expiry_date": (
+                        product.expiry_date if product else None
+                    )
+                }
+
+            # =========================
+            # ELECTRONICS
+            # =========================
+                elif category == "ELECTRONICS":
+
+                    verification_checks = {
+                    "boot_test_passed": item.get("boot_test_passed"),
+                    "ports_physical_ok": item.get("ports_physical_ok"),
+                }
+
+                    product = Product.objects.filter(id=product_id).first()
+
+                    system_checks = {
+                        "warranty_check": False if (
+                        product and
+                        product.warranty_expiry and
+                        product.warranty_expiry < timezone.now().date()
+                        ) else True,
+
+                        "warranty_expiry": (
+                        product.warranty_expiry if product else None
+                    )
+                }
+
+            # =========================
+            # FURNITURE
+            # =========================
+                elif category == "FURNITURE":
+
+                    verification_checks = {
+                    "structural_ok": item.get("structural_ok"),
+                    "parts_complete": item.get("parts_complete"),
+                    "finish_no_scratches": item.get("finish_no_scratches"),
+                }
+
+            # =========================
+            # STATIONERY
+            # =========================
+                elif category == "STATIONERY":
+
+                    verification_checks = {
+                    "quantity_reconciled": item.get("quantity_reconciled"),
+                    "paper_not_damaged": item.get("paper_not_damaged"),
+                    "ink_lead_test_passed": item.get("ink_lead_test_passed"),
+                }
+
+                item["verification_type"] = category
+                item["verification_checks"] = verification_checks
+                item["system_checks"] = system_checks
+
+        verification_history.append(item)
+
+        verification_history.sort(
+        key=lambda x: x['timestamp'],
+        reverse=True
+    )
+
+        return Response(verification_history)
 
         
 class IssueReportCreateView(generics.CreateAPIView):

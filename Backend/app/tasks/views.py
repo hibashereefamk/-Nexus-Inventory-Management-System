@@ -279,7 +279,8 @@ class ManagerAssignmentListView(APIView):
                 "deadline": first.deadline_date if first.deadline_date else None,
                 "staff": first.staff.username if first.staff else None,
                 "products": [
-                    {
+                    {   
+                        "id": item.product.id,
                         "name": item.product.name,
                         "quantity": item.quantity
                     }

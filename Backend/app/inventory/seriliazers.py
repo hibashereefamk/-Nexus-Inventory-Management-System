@@ -5,27 +5,83 @@ from .models import ( Product,Category,IssueReport,Notification,
     ElectronicsVerification, StationeryVerification
 )
 
-# 1. Food Serializer
+from rest_framework import serializers
+from django.db import models
+
+from rest_framework import serializers
+from django.db import models
+
+from rest_framework import serializers
+from django.db import models
+
+class VerificationSerializer(serializers.ModelSerializer):
+
+    verified_by = serializers.CharField(
+        source='verified_by.username',
+        read_only=True
+    )
+
+    verification_checks = serializers.SerializerMethodField()
+
+    system_checks = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FoodVerification
+        fields = [
+            'id',
+            'is_passed',
+            'comments',
+            'timestamp',
+            'verified_by',
+            'verification_checks',
+            'system_checks'
+        ]
+
+    def get_verification_checks(self, obj):
+
+        checks = {}
+
+        for field in obj._meta.fields:
+
+            if isinstance(field, models.BooleanField):
+
+                if field.name != 'is_passed':
+
+                    checks[field.name] = getattr(obj, field.name)
+
+        return checks
+
+    def get_system_checks(self, obj):
+
+        return {
+            "product_status": obj.product.status,
+            "available_stock": obj.product.available_stock,
+            "department": obj.product.department.name
+        }
 class FoodVerificationSerializer(serializers.ModelSerializer):
+    verified_by = serializers.StringRelatedField()
     class Meta:
         model = FoodVerification
         fields = '__all__'
 
 # 2. Furniture Serializer
 class FurnitureVerificationSerializer(serializers.ModelSerializer):
+    verified_by = serializers.StringRelatedField()
     class Meta:
         model = FurnitureVerification
         fields = '__all__'
 
 # 3. Electronics Serializer
 class ElectronicsVerificationSerializer(serializers.ModelSerializer):
-    unique_serial_number = serializers.CharField(required=False, allow_blank=True)
+    verified_by = serializers.StringRelatedField()
+    
     class Meta:
         model = ElectronicsVerification
         fields = '__all__'
 
 # 4. Stationery Serializer
 class StationeryVerificationSerializer(serializers.ModelSerializer):
+    verified_by = serializers.StringRelatedField()
     class Meta:
         model = StationeryVerification
         fields = '__all__'

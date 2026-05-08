@@ -243,6 +243,7 @@ class BaseVerification(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="%(class)s_records")
     verified_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     timestamp = models.DateTimeField(auto_now_add=True)
+    assignment = models.ForeignKey('tasks.OrderAssignment', on_delete=models.CASCADE, null=True, blank=True, related_name="%(class)s_records")
     is_passed = models.BooleanField(default=True)
     comments = models.TextField(blank=True, null=True)
 

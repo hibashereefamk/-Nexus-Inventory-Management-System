@@ -14,7 +14,7 @@ const getAuthHeaders = () => {
   return { headers: { Authorization: `Bearer ${token}` } };
 };
 
-const ProductVerification = ({ product, onComplete, onBack }) => {
+const ProductVerification = ({ product,assignmentId , onComplete, onBack }) => {
   const [previousReport, setPreviousReport] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeType, setActiveType] = useState('food');
@@ -43,6 +43,7 @@ const ProductVerification = ({ product, onComplete, onBack }) => {
     quantity_reconciled: false,
     ink_lead_test_passed: false,
     paper_not_damaged: false,
+    
   });
 
   // Auto-Select Type based on Department
@@ -102,7 +103,7 @@ const ProductVerification = ({ product, onComplete, onBack }) => {
     try {
       // Logic Check
       const pId = product.product_details?.id || product.id || product.product;
-      const taskId = product.task_id || product.assignment_id;
+      const taskId = assignmentId ;
       
       console.log("IDs found:", { pId, taskId });
 

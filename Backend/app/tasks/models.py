@@ -191,30 +191,26 @@ class OrderAssignment(models.Model):
         self.save()
         self.order.update_status_from_assignments()
 
-    def manager_decision(self, decision,remarks=None):
-        """
-        Manager approves/rejects
-        """
+    def manager_decision(self, decision, remarks=None):
+
         if decision == 'APPROVED':
+
+        # ✅ ONLY approval
             self.approval_status = 'APPROVED'
 
+        # ✅ Keep packed status
             if self.verification_status == 'PASSED':
-                self.status = 'SHIPPED'
-                self.completed_at = timezone.now()
-                all_items = OrderItem.objects.filter(order_number=self.order.order_number)
-                for item in all_items:
-                    item.release_stock()
+                self.status = 'PACKED'
 
         elif decision == 'REJECTED':
+
             self.approval_status = 'REJECTED'
-            self.is_cancelled = True
-            
-            all_items = OrderItem.objects.filter(order_number=self.order.order_number)
-            for item in all_items:
-                item.cancel_reservation()
-            report = self.issue_reports.first() 
+            self.status = 'PACKING'
+
+            report = self.issue_reports.first()
+
             if report:
-                report.manager_remarks = remarks # Now this works because of the argument above
+                report.manager_remarks = remarks
                 report.is_reviewed_by_manager = True
                 report.save()
 

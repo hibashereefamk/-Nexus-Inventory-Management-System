@@ -159,57 +159,181 @@ function ManagerTasksView() {
 
                   <td className="p-4 text-right space-x-2">
 
-                   <td className="p-4 text-right space-x-2">
-  {/* 1. CRITICAL PRIORITY: Damage Review */}
-  {/* If verification failed, this is the only action that matters */}
-  {task.verification_status === "FAILED" ? (
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        navigate(`/manager/order-review/${task.id}`);
-      }}
-      className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-xs font-black shadow-sm transition-all"
-    >
-      REVIEW DAMAGE REPORT
-    </button>
-  ) : (
-    <div className="flex justify-end gap-2">
-      {/* 2. LOGISTICS CONTROL: Assignment */}
-      {/* Show Assign/Reassign if the order is still in early stages */}
-      {(task.status === "PENDING" || task.status === "PACKING") && (
+                   <td className="p-4 text-right">
+  <div className="flex justify-end gap-2 flex-wrap">
+
+    {/* =========================
+        FAILED VERIFICATION
+    ========================== */}
+    {task.verification_status === "FAILED" && (
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+
+          navigate(`/manager/order-review/${task.id}`, {
+            state: {
+              products: task.products
+            }
+          });
+        }}
+        className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-xs font-black"
+      >
+        REVIEW DAMAGE
+      </button>
+    )}
+
+    {/* =========================
+        ASSIGN STAFF
+    ========================== */}
+    {(task.status === "PENDING" ||
+      task.status === "PACKING") && (
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setSelectedTask(task);
+        }}
+        className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold"
+      >
+        {task.staff ? "Reassign" : "Assign Staff"}
+      </button>
+    )}
+
+    {/* =========================
+        MANAGER AUDIT
+    ========================== */}
+    {task.status === "PACKED" &&
+      task.approval_status === "PENDING" && (
+      <>
         <button
           onClick={(e) => {
             e.stopPropagation();
-            setSelectedTask(task);
-          }}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
-        >
-          {task.staff ? "Reassign" : "Assign Staff"}
-        </button>
-      )}
 
-      {/* 3. QUALITY GATE: Review & Approve */}
-      {/* Show Audit button only if staff has finished packing successfully */}
-      {task.status === "PACKED" && (
+            navigate(`/manager/order-review/${task.id}`, {
+              state: {
+                products: task.products
+              }
+            });
+          }}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-black"
+        >
+          REVIEW & APPROVE
+        </button>
+
         <button
-          onClick={(e) => {
+          onClick={async (e) => {
             e.stopPropagation();
-            navigate(`/manager/order-review/${task.id}`);
-          }}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-black shadow-md flex items-center gap-1"
-        >
-          AUDIT & SHIP
-        </button>
-      )}
 
-      {/* 4. COMPLETED STATE */}
-      {task.status === "SHIPPED" && (
-        <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest">
-          ✔ Dispatched
+            try {
+              await axios.patch(
+                `${API}/api/orders/manager/approve-order/${task.id}/`,
+                {
+                  decision: "REJECTED",
+                  remarks: "Rejected by manager"
+                },
+                getAuthHeaders()
+              );
+
+              fetchTasks();
+
+            } catch (err) {
+              console.error(err);
+            }
+          }}
+          className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1.5 rounded-lg text-xs font-black"
+        >
+          REJECT
+        </button>
+      </>
+    )}
+
+    {/* =========================
+        APPROVED WAITING FOR SHIPPING
+    ========================== */}
+    {task.approval_status === "APPROVED" &&
+      task.status === "PACKED" && (
+      <>
+        <span className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg text-xs font-black">
+          APPROVED
         </span>
-      )}
-    </div>
-  )}
+
+        <button
+          onClick={async (e) => {
+            e.stopPropagation();
+
+            try {
+              await axios.patch(
+                `${API}/api/orders/manager/update-status/${task.id}/`,
+                {
+                  issue_status: "DAMAGED"
+                },
+                getAuthHeaders()
+              );
+
+              fetchTasks();
+
+            } catch (err) {
+              console.error(err);
+            }
+          }}
+          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-black"
+        >
+          REPORT ISSUE
+        </button>
+
+        <button
+          onClick={async (e) => {
+            e.stopPropagation();
+
+            try {
+              await axios.patch(
+                `${API}/api/orders/manager/update-status/${task.id}/`,
+                {
+                  is_cancelled: true
+                },
+                getAuthHeaders()
+              );
+
+              fetchTasks();
+
+            } catch (err) {
+              console.error(err);
+            }
+          }}
+          className="bg-slate-700 hover:bg-slate-800 text-white px-3 py-1.5 rounded-lg text-xs font-black"
+        >
+          CANCEL ORDER
+        </button>
+      </>
+    )}
+
+    {/* =========================
+        SHIPPED
+    ========================== */}
+    {task.status === "SHIPPED" && (
+      <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest">
+        ✔ Dispatched
+      </span>
+    )}
+
+    {/* =========================
+        REJECTED
+    ========================== */}
+    {task.approval_status === "REJECTED" && (
+      <span className="bg-red-100 text-red-700 px-3 py-1 rounded-lg text-xs font-black">
+        REJECTED
+      </span>
+    )}
+
+    {/* =========================
+        CANCELLED
+    ========================== */}
+    {task.is_cancelled && (
+      <span className="bg-gray-200 text-gray-700 px-3 py-1 rounded-lg text-xs font-black">
+        CANCELLED
+      </span>
+    )}
+
+  </div>
 </td>
                     
 

@@ -302,6 +302,7 @@ if (!isSelectingProduct && activeVerificationTask?.current_product) {
     return (
         <ProductVerification 
             product={activeVerificationTask.current_product} 
+            assignmentId={activeVerificationTask.id}
             onBack={() => { 
                 setIsSelectingProduct(true);
                 fetchData(); 
@@ -420,76 +421,144 @@ if (!isSelectingProduct && activeVerificationTask?.current_product) {
             </div>
           </td>
 
-         {/* ACTION */}
+        {/* ACTION */}
 <td className="p-4 text-right">
-  {/* 1. EXCEPTION PATH: Verification Failed (Rework Required) */}
-  {task.verification_status === 'FAILED' ? (
-    <button
-      onClick={() => handleOpenVerification(task)}
-      className="px-4 py-1.5 bg-red-600 text-white text-xs font-bold rounded shadow-sm hover:bg-red-700 transition-colors"
-    >
-      Rework / Fix Issue
-    </button>
-  ) : (
-    <>
-      {/* 2. HAPPY PATH: Standard Workflow */}
-      
-      {/* PENDING -> Start Packing */}
-      {task.status === "PENDING" && (
-        <button
-          onClick={() => updateStatus(task.id, "PACKING")}
-          className="px-4 py-1.5 bg-slate-900 text-white text-xs font-bold rounded hover:bg-black transition-colors"
-        >
-          Start
-        </button>
-      )}
+  <div className="flex justify-end gap-2 flex-wrap">
 
-      {/* PACKING -> Open Verification Modal */}
-      {task.status === "PACKING" && (
-        <button
-          onClick={() => handleOpenVerification(task)}
-          className="px-4 py-1.5 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 transition-colors"
-        >
-          Verify
-        </button>
-      )}
+    {/* =====================================
+        ISSUE / DAMAGE WORKFLOW
+    ====================================== */}
+    {task.verification_status === 'FAILED' && (
+      <button
+        onClick={() => handleOpenVerification(task)}
+        className="
+          px-4 py-2
+          bg-red-600 hover:bg-red-700
+          text-white text-[11px] font-black uppercase tracking-wide
+          rounded-xl shadow-sm
+          transition-all duration-200
+        "
+      >
+        Resolve QC Failure
+      </button>
+    )}
 
-      {/* PACKED & APPROVED -> Final Shipment */}
-      {task.status === "PACKED" && task.approval_status === "APPROVED" && (
-        <button
-          onClick={() => updateStatus(task.id, "SHIPPED")}
-          className="px-4 py-1.5 bg-green-600 text-white text-xs font-bold rounded hover:bg-green-700 transition-colors"
-        >
-          Ship
-        </button>
-      )}
+    {/* =====================================
+        PENDING → START PICKING
+    ====================================== */}
+    {task.status === "PENDING" && (
+      <button
+        onClick={() => updateStatus(task.id, "PACKING")}
+        className="
+          px-4 py-2
+          bg-slate-900 hover:bg-black
+          text-white text-[11px] font-black uppercase tracking-wide
+          rounded-xl shadow-sm
+          transition-all duration-200
+        "
+      >
+        Start Fulfillment
+      </button>
+    )}
 
-      {/* PACKED & PENDING -> Waiting for Manager */}
-      {task.status === "PACKED" && task.approval_status === "PENDING" && (
-        <span className="inline-flex items-center px-3 py-1 bg-amber-50 text-amber-600 text-[10px] font-black uppercase rounded-full border border-amber-100">
-          Waiting Approval
-        </span>
-      )}
-      {task.status === "PACKED" && task.approval_status === "APPROVED" && (
-        <span className="text-emerald-600 font-black text-[10px] uppercase">
-          ship
-        </span>
-      )}{task.status === "PACKED" && task.approval_status === "REJECTED" && (
-        <span className="px-4 py-1.5 bg-red-600 text-white text-xs font-bold rounded shadow-sm hover:bg-red-700 transition-colors">
-          Rejected by manager 
-        </span>
-      )}
-      
-      {/* SHIPPED -> Completed State */}
-      {task.status === "SHIPPED" && (
-        <span className="text-emerald-600 font-black text-[10px] uppercase">
-          ✔ Dispatched
-        </span>
-      )}
-    </>
-  )}
+    {/* =====================================
+        PACKING → VERIFY
+    ====================================== */}
+    {task.status === "PACKING" &&
+      task.verification_status !== "FAILED" && (
+      <button
+        onClick={() => handleOpenVerification(task)}
+        className="
+          px-4 py-2
+          bg-blue-600 hover:bg-blue-700
+          text-white text-[11px] font-black uppercase tracking-wide
+          rounded-xl shadow-sm
+          transition-all duration-200
+        "
+      >
+        Run QC Check
+      </button>
+    )}
+
+    {/* =====================================
+        WAITING FOR MANAGER
+    ====================================== */}
+    {task.status === "PACKED" &&
+      task.approval_status === "PENDING" && (
+      <span
+        className="
+          inline-flex items-center
+          px-4 py-2
+          bg-amber-50
+          text-amber-700
+          border border-amber-200
+          text-[10px] font-black uppercase tracking-widest
+          rounded-full
+        "
+      >
+        Awaiting Manager Approval
+      </span>
+    )}
+
+    {/* =====================================
+        APPROVED → READY TO SHIP
+    ====================================== */}
+    {task.status === "PACKED" &&
+      task.approval_status === "APPROVED" && (
+      <button
+        onClick={() => updateStatus(task.id, "SHIPPED")}
+        className="
+          px-5 py-2
+          bg-emerald-600 hover:bg-emerald-700
+          text-white text-[11px] font-black uppercase tracking-wide
+          rounded-xl shadow-lg
+          transition-all duration-200
+        "
+      >
+        Dispatch Shipment
+      </button>
+    )}
+
+    {/* =====================================
+        REJECTED
+    ====================================== */}
+    {task.status === "PACKED" &&
+      task.approval_status === "REJECTED" && (
+      <span
+        className="
+          px-4 py-2
+          bg-red-50
+          text-red-700
+          border border-red-200
+          text-[10px] font-black uppercase tracking-widest
+          rounded-full
+        "
+      >
+        Rejected By Manager
+      </span>
+    )}
+
+    {/* =====================================
+        SHIPPED
+    ====================================== */}
+    {task.status === "SHIPPED" && (
+      <span
+        className="
+          inline-flex items-center
+          px-4 py-2
+          bg-emerald-50
+          text-emerald-700
+          border border-emerald-200
+          text-[10px] font-black uppercase tracking-widest
+          rounded-full
+        "
+      >
+        ✔ Shipment Dispatched
+      </span>
+    )}
+
+  </div>
 </td>
-
         </tr>
       ))}
     </tbody>
