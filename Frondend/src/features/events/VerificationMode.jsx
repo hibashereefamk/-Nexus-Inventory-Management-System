@@ -14,7 +14,7 @@ const getAuthHeaders = () => {
   return { headers: { Authorization: `Bearer ${token}` } };
 };
 
-const ProductVerification = ({ product,assignmentId , onComplete, onBack }) => {
+const ProductVerification = ({ product, onComplete, onBack }) => {
   const [previousReport, setPreviousReport] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeType, setActiveType] = useState('food');
@@ -43,7 +43,6 @@ const ProductVerification = ({ product,assignmentId , onComplete, onBack }) => {
     quantity_reconciled: false,
     ink_lead_test_passed: false,
     paper_not_damaged: false,
-    
   });
 
   // Auto-Select Type based on Department
@@ -102,8 +101,12 @@ const ProductVerification = ({ product,assignmentId , onComplete, onBack }) => {
     
     try {
       // Logic Check
-      const pId = product.product_details?.id || product.id || product.product;
-      const taskId = assignmentId ;
+      const pId =
+  product.product_id ||
+  product.id ||
+  product.product ||
+  product.product_details?.id;
+      const taskId = product.task_id || product.assignment_id;
       
       console.log("IDs found:", { pId, taskId });
 
@@ -174,11 +177,11 @@ const ProductVerification = ({ product,assignmentId , onComplete, onBack }) => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-1">
                 <label className="text-sm font-semibold">Product</label>
-                <input type="text" readOnly value={product.name || product.product_details?.name} className="w-full p-2.5 bg-slate-50 border rounded-md text-sm outline-none" />
+                <input type="text" readOnly value={product.name } className="w-full p-2.5 bg-slate-50 border rounded-md text-sm outline-none" />
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-semibold">Department</label>
-                <input type="text" readOnly value={product.department_name} className="w-full p-2.5 bg-slate-50 border rounded-md text-sm outline-none" />
+                <input type="text" readOnly value={product.department_name ||product.department} className="w-full p-2.5 bg-slate-50 border rounded-md text-sm outline-none" />
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-semibold">Batch / Lot No. *</label>

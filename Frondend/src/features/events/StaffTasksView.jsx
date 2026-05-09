@@ -19,6 +19,7 @@ const StaffTaskTerminal = () => {
   const [lastSynced, setLastSynced] = useState(new Date().toLocaleTimeString());
   const [inspectionItems, setInspectionItems] = useState([]);
   const [isSelectingProduct, setIsSelectingProduct] = useState(false);
+  
 
   const getAuthHeaders = () => ({
     headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
@@ -26,69 +27,101 @@ const StaffTaskTerminal = () => {
 
   // --- 1. MISSING FETCH DATA FUNCTION ---
   const fetchData = useCallback(async () => {
-    try {
-      const [tasksRes, statsRes] = await Promise.all([
-        axios.get(`${API}/api/orders/staff/tasks/`, getAuthHeaders()),
-        axios.get(`${API}/api/orders/staff/stats/`, getAuthHeaders())
-      ]);
+  try {
+    const [tasksRes, statsRes] = await Promise.all([
+      axios.get(`${API}/api/orders/staff/tasks/`, getAuthHeaders()),
+      axios.get(`${API}/api/orders/staff/stats/`, getAuthHeaders())
+    ]);
 
-      // Handle both DRF paginated and non-paginated responses
-      const taskData = Array.isArray(tasksRes.data) ? tasksRes.data : tasksRes.data.results || [];
-      
-      setTasks(taskData);
-      setFilteredTasks(taskData);
-      setStats(statsRes.data);
-      setLastSynced(new Date().toLocaleTimeString());
-    } catch (err) {
-      console.error("Sync Error:", err);
-      toast.error("Failed to sync with ERP server.");
-    }
-  }, []);
+    const taskData = Array.isArray(tasksRes.data)
+      ? tasksRes.data
+      : tasksRes.data.results || [];
 
- const updateStatus = async (id, status) => {
-    try {
-      await axios.patch(`${API}/api/orders/staff/update-task/${id}/`, { status }, getAuthHeaders());
-      toast.success(`Status updated to ${status}`);
-      fetchData();
-    } catch (err) {
-      toast.error("Error updating status.");
-    }
-  };
+    setTasks(taskData);
+    setFilteredTasks(taskData || []);
+    setStats(statsRes.data || { pending: 0, packing: 0, packed: 0 });
+    setLastSynced(new Date().toLocaleTimeString());
 
+  } catch (err) {
+    console.error("Sync Error:", err);
+    toast.error("Failed to sync with ERP server.");
+  }
+}, []);
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
- const handleOpenVerification = async (taskItem) => {
+  const updateStatus = async (taskId, status) => {
   try {
-    const pId = taskItem.order_details.product; // Get Product ID
-    
-    // 1. Fetch the full history for this specific product
-    const historyRes = await axios.get(
-      `${API}/api/inventory/verify-products/history/${pId}/`, 
+    await axios.patch(
+      `${API}/api/orders/staff/update-task/${taskId}/`,
+      { status },
       getAuthHeaders()
     );
 
-    // 2. Get the latest record (since history is sorted by timestamp)
-    const latestVerification = historyRes.data.length > 0 ? historyRes.data[0] : null;
+    toast.success(`Task moved to ${status}`);
 
-    const items = [{
-      ...taskItem.order_details,
-      product_details: taskItem.order_details.product_details,
-      // 3. ATTACH THE FULL JSON DATA HERE
-      last_verification: latestVerification, 
-      is_inspected: false,
-    }];
+    // Refresh ERP task list
+    fetchData();
 
-    setInspectionItems(items); 
-    setActiveVerificationTask(taskItem);
-    setIsSelectingProduct(true);
-    
   } catch (err) {
+    console.log("STATUS UPDATE ERROR:", err?.response?.data || err.message);
+
+    const errorMessage =
+      err?.response?.data?.detail ||
+      err?.response?.data?.message ||
+      "Failed to update task status";
+
+    toast.error(errorMessage);
+  }
+};
+const handleOpenVerification = async (taskItem) => {
+  try {
+
+    // 🔥 STEP 1: always fetch full task detail (IMPORTANT ERP FIX)
+    const res = await axios.get(
+      `${API}/api/orders/staff/tasks/${taskItem.id}/`,
+      getAuthHeaders()
+    );
+
+    const fullTask = res.data;
+
+    const products = Array.isArray(fullTask?.products)
+      ? fullTask.products
+      : [];
+
+    if (!Array.isArray(products) || products.length === 0){
+      toast.error("No products found in task detail API");
+      return;
+    }
+
+    const productsWithHistory = await Promise.all(
+      products.map(async (p) => {
+
+        const productId = p.product_id || p.product;
+
+        const historyRes = await axios.get(
+          `${API}/api/inventory/verify-products/history/${productId}/`,
+          getAuthHeaders()
+        );
+
+        return {
+          ...p,
+          last_verification: historyRes.data?.[0] || null,
+          is_inspected: false,
+        };
+      })
+    );
+
+    setInspectionItems(productsWithHistory);
+    setActiveVerificationTask(fullTask);
+    setIsSelectingProduct(true);
+
+  } catch (err) {
+    console.log("ERP ERROR:", err?.response?.data || err.message);
     toast.error("ERP History Sync Error.");
   }
 };
- // --- RENDER MODES ---
 
 if (isSelectingProduct && activeVerificationTask) {
     const task = activeVerificationTask;
@@ -152,16 +185,16 @@ if (isSelectingProduct && activeVerificationTask) {
                             </tr>
                         </thead>
                         <tbody>
-                            {inspectionItems.map((item) => (
+                            {(inspectionItems || []).map((item) => (
   <React.Fragment key={item.id}>
     <tr className="border-b border-slate-100">
                                     <td className="p-4">
-                                        <p className="font-bold text-slate-900">{item.product_details?.name}</p>
-                                        <p className="text-[10px] font-mono text-slate-400">{item.product_details?.sku}</p>
+                                        <p className="font-bold text-slate-900">{item.name}</p>
+                                        <p className="text-[10px] font-mono text-slate-400">{item.sku}</p>
                                     </td>
                                     <td className="p-4 text-center">
                                         <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-[10px] font-bold uppercase">
-                                            {item.product_details?.category_name}
+                                            {item.category_name}
                                         </span>
                                     </td>
                                     <td className="p-4 text-center font-mono font-bold text-slate-700">
@@ -191,18 +224,35 @@ if (isSelectingProduct && activeVerificationTask) {
       {/* NEW: Explicit button to see the report and start fixing */}
       <button
         onClick={() => {
-          setActiveVerificationTask({ 
-            ...task, 
-            current_product: {
-              ...item.product_details,
-              order_item_id: item.id,
-              task_id: task.id,
-              product_name: item.product_details?.name,
-              issue_description: task.issue_description // From your handleOpenVerification logic
-            } 
-          });
-          setIsSelectingProduct(false);
-        }}
+  const selectedProduct = {
+  product_id: item.product_id || item.id,
+
+  name: item.name,
+  sku: item.sku,
+  batch_number: item.batch_number,
+  category_name: item.category_name,
+
+  department_name:item.department,
+  order_number: task.order_number,
+  staff_username: task.staff_username,
+
+  expiry_date: item.expiry_date,
+  warranty_expiry: item.warranty_expiry,
+  total_stock: item.total_stock,
+
+  order_item_id: item.id,
+  task_id: task.id,
+
+  quantity: item.quantity,
+};
+
+  setActiveVerificationTask({
+    ...task,
+    current_product: selectedProduct
+  });
+
+  setIsSelectingProduct(false);
+}}
         className="text-[10px] font-bold text-red-700 underline hover:text-red-900"
       >
         View Damage Report & Start Rework
@@ -219,25 +269,31 @@ if (isSelectingProduct && activeVerificationTask) {
   ) : (
     <button
       onClick={() => {
-        const selectedProduct = {
-          ...item.product_details,
-          order_item_id: item.id,
-          task_id: task.id,
-          department_name: task.department_name,
-          order_number: task.order_number,
-          staff_username: task.staff_username,
-          product_name: item.product_details?.name,
-          quantity: item.quantity,
-        };
+  const selectedProduct = {
+    product_id: item.product_id || item.id,
+    name: item.name,
+    sku: item.sku,
+    batch_number: item.batch_number,
+    category_name: item.category_name,
 
-        console.log("SELECTED PRODUCT:", selectedProduct);
+    order_item_id: item.id,
+    task_id: task.id,
+    department_name: task.department,
+    order_number: task.order_number,
+    staff_username: task.staff_username,
 
-        setActiveVerificationTask({ 
-          ...task, 
-          current_product: selectedProduct 
-        });
-        setIsSelectingProduct(false);
-      }}
+    quantity: item.quantity,
+  };
+
+  console.log("SELECTED PRODUCT:", selectedProduct);
+
+  setActiveVerificationTask({
+    ...task,
+    current_product: selectedProduct
+  });
+
+  setIsSelectingProduct(false);
+}}
       className="px-4 py-1.5 rounded-lg text-[10px] font-black uppercase bg-blue-600 text-white hover:bg-blue-700"
     >
       Verify Product
@@ -301,8 +357,7 @@ if (isSelectingProduct && activeVerificationTask) {
 if (!isSelectingProduct && activeVerificationTask?.current_product) {
     return (
         <ProductVerification 
-            product={activeVerificationTask.current_product} 
-            assignmentId={activeVerificationTask.id}
+            product={activeVerificationTask.current_product}
             onBack={() => { 
                 setIsSelectingProduct(true);
                 fetchData(); 
@@ -359,7 +414,7 @@ if (!isSelectingProduct && activeVerificationTask?.current_product) {
     </thead>
 
     <tbody>
-      {filteredTasks.map(task => (
+      {(filteredTasks || []).map(task => (
         <tr key={task.id} className="border-b hover:bg-slate-50 transition">
 
           {/* ORDER */}

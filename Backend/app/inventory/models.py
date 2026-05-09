@@ -48,7 +48,7 @@ class Product(models.Model):
     warranty_expiry = models.DateField(null=True, blank=True) # Defined only once
     batch_number = models.CharField(max_length=50, null=True, blank=True)
     
-    # Stock Management
+    # Stock Management  
     total_stock = models.IntegerField(default=0, help_text="Physical items currently in the warehouse")
     committed_stock = models.IntegerField(default=0, help_text="Items reserved for orders not yet shipped")
     min_stock_level = models.IntegerField(default=5)
@@ -243,7 +243,6 @@ class BaseVerification(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="%(class)s_records")
     verified_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     timestamp = models.DateTimeField(auto_now_add=True)
-    assignment = models.ForeignKey('tasks.OrderAssignment', on_delete=models.CASCADE, null=True, blank=True, related_name="%(class)s_records")
     is_passed = models.BooleanField(default=True)
     comments = models.TextField(blank=True, null=True)
 
@@ -251,7 +250,6 @@ class BaseVerification(models.Model):
         abstract = True
         
 class FoodVerification(BaseVerification):
-    # Already has batch_number in Product, but better to track it here per shipment
     batch_lot = models.CharField(max_length=100)
     temp_chain_ok = models.BooleanField(default=True) # Temperature check
     packaging_sealed = models.BooleanField(default=True) # No leaks

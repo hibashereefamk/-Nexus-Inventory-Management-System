@@ -3,6 +3,7 @@ from rest_framework.views import APIView
 from app.tasks.models import OrderAssignment
 from .models import Product,IssueReport,Notification, StockLog
 from rest_framework.response import Response
+from rest_framework.decorators import action
 from rest_framework import status
 from app.accounts.permissions import IsManager,IsStaffFromDepartment,IsSuperAdmin
 from .seriliazers import(  FoodVerificationSerializer, ProductSerializer,CategorySerializer,NotificationSerializer,IssueReportserializer,
@@ -307,10 +308,6 @@ class VerificationViewSet(viewsets.ModelViewSet):
         instance.save()
         product.save()
 
-    # ====================================================
-    # PRODUCT VERIFICATION HISTORY
-    # ====================================================
-
     @action(
         detail=False,
         methods=['get'],
@@ -329,139 +326,22 @@ class VerificationViewSet(viewsets.ModelViewSet):
 
         for model, serializer_class, category in verification_models:
 
-            records = model.objects.filter(
-                product_id=product_id
-            ).order_by('-timestamp')
+            records = model.objects.filter(product_id=product_id).order_by('-timestamp')
 
             serializer = serializer_class(records, many=True)
 
             for item in serializer.data:
 
-                item['verification_type'] = category
+                item["verification_type"] = category
+                item["timestamp"] = item.get("timestamp")
 
                 verification_history.append(item)
 
-        verification_history.sort(
-            key=lambda x: x['timestamp'],
+        verification_history = sorted(
+            verification_history,
+            key=lambda x: x.get("timestamp") or "",
             reverse=True
         )
-
-        return Response(verification_history)
-
-    # ====================================================
-    # MANAGER REVIEW DETAILS
-    # ====================================================
-
-    @action(
-    detail=False,
-    methods=['get'],
-    url_path=r'history/(?P<product_id>\d+)'
-)
-    def history(self, request, product_id=None):
-
-        verification_history = []
-
-        verification_models = [
-        (FoodVerification, FoodVerificationSerializer, "FOOD"),
-        (ElectronicsVerification, ElectronicsVerificationSerializer, "ELECTRONICS"),
-        (FurnitureVerification, FurnitureVerificationSerializer, "FURNITURE"),
-        (StationeryVerification, StationeryVerificationSerializer, "STATIONERY"),
-    ]
-
-        for model, serializer_class, category in verification_models:
-
-            records = model.objects.filter(
-            product_id=product_id
-        ).order_by('-timestamp')
-
-            serializer = serializer_class(records, many=True)
-
-            for item in serializer.data:
-
-                verification_checks = {}
-                system_checks = {}
-
-            # =========================
-            # FOOD
-            # =========================
-                if category == "FOOD":
-
-                    verification_checks = {
-                    "temp_chain_ok": item.get("temp_chain_ok"),
-                    "packaging_sealed": item.get("packaging_sealed"),
-                    "fssai_verified": item.get("fssai_verified"),
-                }
-
-                    product = Product.objects.filter(id=product_id).first()
-
-                    system_checks = {
-                    "expiry_check": False if (
-                        product and
-                        product.expiry_date and
-                        product.expiry_date < timezone.now().date()
-                    ) else True,
-
-                        "expiry_date": (
-                        product.expiry_date if product else None
-                    )
-                }
-
-            # =========================
-            # ELECTRONICS
-            # =========================
-                elif category == "ELECTRONICS":
-
-                    verification_checks = {
-                    "boot_test_passed": item.get("boot_test_passed"),
-                    "ports_physical_ok": item.get("ports_physical_ok"),
-                }
-
-                    product = Product.objects.filter(id=product_id).first()
-
-                    system_checks = {
-                        "warranty_check": False if (
-                        product and
-                        product.warranty_expiry and
-                        product.warranty_expiry < timezone.now().date()
-                        ) else True,
-
-                        "warranty_expiry": (
-                        product.warranty_expiry if product else None
-                    )
-                }
-
-            # =========================
-            # FURNITURE
-            # =========================
-                elif category == "FURNITURE":
-
-                    verification_checks = {
-                    "structural_ok": item.get("structural_ok"),
-                    "parts_complete": item.get("parts_complete"),
-                    "finish_no_scratches": item.get("finish_no_scratches"),
-                }
-
-            # =========================
-            # STATIONERY
-            # =========================
-                elif category == "STATIONERY":
-
-                    verification_checks = {
-                    "quantity_reconciled": item.get("quantity_reconciled"),
-                    "paper_not_damaged": item.get("paper_not_damaged"),
-                    "ink_lead_test_passed": item.get("ink_lead_test_passed"),
-                }
-
-                item["verification_type"] = category
-                item["verification_checks"] = verification_checks
-                item["system_checks"] = system_checks
-
-        verification_history.append(item)
-
-        verification_history.sort(
-        key=lambda x: x['timestamp'],
-        reverse=True
-    )
 
         return Response(verification_history)
 

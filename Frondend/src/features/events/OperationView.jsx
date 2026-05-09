@@ -217,11 +217,15 @@ const updateStatus = async (order_number, action) => {
               onChange={e => updateItem(index, 'product', e.target.value)}
             >
               <option value=''>Select Product</option>
-              {products.map(p => (
+              {products.map(p => {
+                const available = p.total_stock - p.committed_stock
+
+              return(
+                
                 <option key={p.id} value={p.id}>
-                  {p.name} (Available: {p.available_stock})
+                  {p.name} | Available: {available}
                 </option>
-              ))}
+              )})}
             </select>
 
             {/* Quantity Input - Now validates against Stock */}

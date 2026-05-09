@@ -65,7 +65,11 @@ class OrderItemSerializer(serializers.ModelSerializer):
         ]
 
 class OrderAssignmentSerializer(serializers.ModelSerializer):
-    order_details = OrderItemSerializer(source='order', read_only=True)
+    order_items = OrderItemSerializer(
+    source='order.orderitem_set',
+    many=True,
+    read_only=True
+)
 
     department_name = serializers.CharField(source='department.name', read_only=True)
     staff_username = serializers.CharField(source='staff.username', read_only=True)
@@ -75,7 +79,7 @@ class OrderAssignmentSerializer(serializers.ModelSerializer):
         model = OrderAssignment
         fields = [
             'id','status','department','department_name','verification_status',
-            'priority','order','order_number','order_details','staff',
+            'priority','order','order_number','order_items','staff',
             'staff_username','issue_status', 'is_cancelled','deadline_date',
             'assigned_at', 'completed_at','manager','approval_status',
         ]

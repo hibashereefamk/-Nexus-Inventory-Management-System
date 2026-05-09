@@ -21,7 +21,7 @@ class OrderItem(models.Model):
         ('CANCELLED', 'Cancelled'),
     ]
 
-    order_number = models.CharField(max_length=50, unique=True, blank=True)
+    order_number = models.CharField(max_length=50, blank=True)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(default=1)
 

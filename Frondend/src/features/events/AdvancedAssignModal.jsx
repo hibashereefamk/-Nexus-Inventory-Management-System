@@ -79,10 +79,31 @@ const AdvancedAssignModal = ({ selectedTask, staffList, onClose, onRefresh }) =>
 
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {selectedTask.products.map((p, i) => (
-                  <div key={i} className="flex justify-between bg-white p-2 rounded border">
-                    <span>{p.name}</span>
-                    <span className="text-gray-500">x{p.quantity}</span>
-                  </div>
+                  <div key={i} className="flex items-center gap-4 bg-white p-3 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+  
+  {/* PRODUCT IMAGE SECTION */}
+  <div className="w-16 h-16 bg-slate-50 rounded-lg border border-slate-100 flex-shrink-0 overflow-hidden flex items-center justify-center">
+    {p.image ? (
+      <img src={p.image} alt={p.name} className="object-cover w-full h-full" />
+    ) : (
+      <span className="text-[10px] text-slate-400 font-bold uppercase">No Img</span>
+    )}
+  </div>
+
+  {/* TEXT DETAILS SECTION */}
+  <div className="flex-1 flex flex-col justify-center leading-tight">
+    <div className="text-sm font-bold text-slate-800">
+      Item: <span className="font-medium text-slate-600">{p.name}</span>
+    </div>
+    <div className="text-xs font-bold text-slate-800">
+      Quantity: <span className="font-medium text-slate-600">{p.quantity}</span>
+    </div>
+    <div className="text-xs font-bold text-slate-800">
+      Department: <span className="font-medium text-slate-600">{p.department_name}</span>
+    </div>
+  </div>
+
+</div>
                 ))}
               </div>
             </div>
@@ -96,7 +117,7 @@ const AdvancedAssignModal = ({ selectedTask, staffList, onClose, onRefresh }) =>
 
             <div className="space-y-2 max-h-72 overflow-y-auto">
               {staffList.map(s => {
-                const isBest = s.current_tasks === Math.min(...staffList.map(x => x.current_tasks))
+                const isBest = s.active_tasks_count === Math.min(...staffList.map(x => x.current_tasks))
 
                 return (
                   <div
@@ -109,7 +130,13 @@ const AdvancedAssignModal = ({ selectedTask, staffList, onClose, onRefresh }) =>
                     <div>
                       <p className="font-medium">{s.username}</p>
                       <p className="text-xs text-gray-500">
-                        Tasks: {s.current_tasks}
+                        Tasks: {s.active_tasks_count}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Work Load: {s.workload_status}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Department: {s.department}
                       </p>
                     </div>
 

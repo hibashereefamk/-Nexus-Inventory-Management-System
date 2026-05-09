@@ -99,14 +99,14 @@ class UserWorkloadSerializer(serializers.ModelSerializer):
     # These are COMPUTED fields (not in your database model)
     active_tasks_count = serializers.SerializerMethodField()
     workload_status = serializers.SerializerMethodField()
-    
+    department = serializers.ReadOnlyField(source='department.name')
     # This pulls the name from the related Department model
     zone_name = serializers.ReadOnlyField(source='warehouse_zone.name')
 
     class Meta:
         model = User
         fields = [
-            'id', 'username', 'email', 'role', 
+            'id', 'username', 'email', 'role','department',
             'is_available', 'active_tasks_count', 
             'workload_status', 'zone_name'
         ]

@@ -163,7 +163,40 @@ class DepartmentListView(generics.ListAPIView):
     """
     queryset = Department.objects.select_related('manager').all()
     serializer_class = DepartmentManagerSerializer
-    permission_classes = [IsAuthenticated]   
+    permission_classes = [IsAuthenticated]  
+
+class AdminOrderUpdateView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def put(self, request, order_number):
+        items_data = request.data.get("items", [])
+
+        orders = OrderItem.objects.filter(order_number=order_number)
+
+        if not orders.exists():
+            return Response({"error": "Order not found"}, status=404)
+
+        # ❌ block editing confirmed/shipped orders
+        if orders.first().status in ["CONFIRMED", "SHIPPED"]:
+            return Response(
+                {"error": "Cannot edit confirmed or shipped orders"},
+                status=400
+            )
+
+        # update logic
+        for item_data in items_data:
+            item_id = item_data.get("id")
+            quantity = item_data.get("quantity")
+
+            try:
+                item = OrderItem.objects.get(id=item_id, order_number=order_number)
+                item.quantity = quantity
+                item.save()
+
+            except OrderItem.DoesNotExist:
+                return Response({"error": "Item not found"}, status=404)
+
+        return Response({"message": "Order updated successfully"}) 
 
 class AdmnOrderRejectView(APIView):
     permission_classes = [IsAdminUser]
@@ -275,12 +308,14 @@ class ManagerAssignmentListView(APIView):
                  "order_number": order_number,
                 "department": first.department.name if first.department else None,
                 "status": first.status,
+                "approval_status": first.approval_status,
                 "verification_status": first.verification_status, # <--- ADD THIS LINE
                 "deadline": first.deadline_date if first.deadline_date else None,
                 "staff": first.staff.username if first.staff else None,
                 "products": [
                     {   
                         "id": item.product.id,
+                        "department_name": item.product.department.name if item.product.department else None,
                         "name": item.product.name,
                         "quantity": item.quantity
                     }
@@ -440,13 +475,44 @@ class StaffUpdateTaskStatusView(generics.UpdateAPIView):
             assignment.save()
 
         assignment.order.update_status_from_assignments()
-class StaffTaskDetailView(generics.RetrieveAPIView):
-    serializer_class = OrderAssignmentSerializer
+class StaffTaskDetailView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsStaffFromDepartment]
 
-    def get_queryset(self):
-        return OrderAssignment.objects.filter(staff=self.request.user)  
-    
+    def get(self, request, pk):
+        assignment = OrderAssignment.objects.get(
+            id=pk,
+            staff=request.user
+        )
+
+        order_number = assignment.order.order_number
+
+        items = OrderItem.objects.filter(order_number=order_number)
+
+        return Response({
+            "id": assignment.id,
+            "order_number": order_number,
+            "department": assignment.department.name if assignment.department else None,
+            "status": assignment.status,
+            "approval_status": assignment.approval_status,
+            "verification_status": assignment.verification_status,
+            "deadline": assignment.deadline_date,
+            "staff": assignment.staff.username if assignment.staff else None,
+
+            # 🔥 THIS is the fix
+            "products": [
+                {
+        "product_id": item.product.id, 
+        "department_name": item.product.department.name if item.product.department else None,  # IMPORTANT
+        "name": item.product.name,
+        "sku": item.product.sku,
+        "batch_number": item.product.batch_number,   # ADD THIS
+        "category_name": item.product.category.name if item.product.category else None,
+        "quantity": item.quantity,
+        "status": item.status,
+    }
+                for item in items
+            ]
+        })
 class StaffCreateIssueView(APIView):
     permission_classes = [IsAuthenticated]
 
