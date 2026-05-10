@@ -18,14 +18,6 @@ const ProductVerification = ({ product, onComplete, onBack }) => {
   const [previousReport, setPreviousReport] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeType, setActiveType] = useState('food');
-
-  const isPastDate = (dateString) => {
-    if (!dateString) return false;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return new Date(dateString) < today;
-  };
-
   const [formData, setFormData] = useState({
     is_passed: true,
     comments: '',
@@ -44,6 +36,34 @@ const ProductVerification = ({ product, onComplete, onBack }) => {
     ink_lead_test_passed: false,
     paper_not_damaged: false,
   });
+
+  const isPastDate = (dateString) => {
+    if (!dateString) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return new Date(dateString) < today;
+  };
+
+  useEffect(() => {
+    setFormData({
+      is_passed: true,
+      comments: '',
+      batch_lot: product.batch_number || '', 
+      temp_chain_ok: false, 
+      packaging_sealed: false,
+      fssai_verified: false,
+      structural_ok: false,
+      finish_no_scratches: false,
+      parts_complete: false,
+      unique_serial_number: '',
+      boot_test_passed: false, 
+      ports_physical_ok: false,
+      firmware_version: '',
+      quantity_reconciled: false,
+      ink_lead_test_passed: false,
+      paper_not_damaged: false,
+    });
+  }, [product.product_id, product.id]);
 
   // Auto-Select Type based on Department
   useEffect(() => {
@@ -100,48 +120,37 @@ const ProductVerification = ({ product, onComplete, onBack }) => {
     setLoading(true);
     
     try {
-      // Logic Check
-      const pId =
-  product.product_id ||
-  product.id ||
-  product.product ||
-  product.product_details?.id;
-      const taskId = product.task_id || product.assignment_id;
+    const pId = product.product_id || product.id;
+    const taskId = product.task_id;
+    const config = getAuthHeaders();
       
       console.log("IDs found:", { pId, taskId });
 
       if (!taskId) {
         throw new Error("Task ID is missing. Cannot submit.");
       }
-
-      const config = getAuthHeaders();
-
       // 1. Submit Detailed Verification
       console.log("Sending POST to verify-products...");
       await axios.post(`${API}/api/inventory/verify-products/`, {
         product: pId,
-        assignment_id: taskId,
-        active_type: activeType,
-        ...formData
-      }, config);
+      assignment_id: taskId,
+      active_type: activeType,
+      ...formData
+    }, config);
 
-      // 2. Update Order Assignment
       console.log("Sending PATCH to staff tasks...");
-      await axios.patch(`${API}/api/orders/staff/tasks/${taskId}/inspect/`, {
-        is_passed: formData.is_passed,
-        comments: formData.comments || (isPastDate(product.expiry_date) ? "Product Expired" : ""),
-        status: formData.is_passed ? 'PACKED' : 'PICKING'
-      }, config);
+     
+      toast.success(`${product.name} Verified!`);
+    
+    // 3. Return to the list of items
+    onBack(); 
 
-      toast.success("Success!");
-      if (onComplete) onComplete();
+  } catch (err) {
+    toast.error("Execution Error");
+  } finally {
+    setLoading(false);
+  }
 
-    } catch (err) {
-      console.error("FULL ERROR:", err);
-      toast.error(err.response?.data?.detail || "Execution Error");
-    } finally {
-      setLoading(false);
-    }
   };
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 text-slate-700">

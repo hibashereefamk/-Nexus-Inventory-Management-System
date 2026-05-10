@@ -1,3 +1,5 @@
+from urllib import request
+
 from rest_framework import generics, permissions
 from rest_framework.views import APIView
 from app.tasks.models import OrderAssignment
@@ -201,11 +203,6 @@ class VerificationViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
 
-        instance = serializer.save(verified_by=self.request.user)
-
-        product = instance.product
-        today = timezone.now().date()
-
         assignment_id = self.request.data.get('assignment_id')
 
         assignment = None
@@ -213,6 +210,13 @@ class VerificationViewSet(viewsets.ModelViewSet):
         if assignment_id:
             assignment = OrderAssignment.objects.filter(id=assignment_id).first()
 
+            instance = serializer.save(
+            verified_by=self.request.user,
+            assignment=assignment
+)
+
+        product = instance.product
+        today = timezone.now().date()
         all_checks_passed = True
         auto_comment = ""
 
@@ -308,15 +312,13 @@ class VerificationViewSet(viewsets.ModelViewSet):
         instance.save()
         product.save()
 
-    @action(
-        detail=False,
-        methods=['get'],
-        url_path=r'history/(?P<product_id>\d+)'
-    )
+   
+    @action(detail=False, methods=['get'], url_path=r'history/(?P<product_id>\d+)')
     def history(self, request, product_id=None):
-
+        # NEW: Get the current assignment ID from URL parameters
+        assignment_id = request.query_params.get('assignment_id')
+        
         verification_history = []
-
         verification_models = [
             (FoodVerification, FoodVerificationSerializer, "FOOD"),
             (ElectronicsVerification, ElectronicsVerificationSerializer, "ELECTRONICS"),
@@ -325,16 +327,16 @@ class VerificationViewSet(viewsets.ModelViewSet):
         ]
 
         for model, serializer_class, category in verification_models:
-
-            records = model.objects.filter(product_id=product_id).order_by('-timestamp')
-
+            # FIX: Filter by product AND assignment_id if provided
+            queryset = model.objects.filter(product_id=product_id)
+            if assignment_id:
+                queryset = queryset.filter(assignment_id=assignment_id)
+            
+            records = queryset.order_by('-timestamp')
             serializer = serializer_class(records, many=True)
 
             for item in serializer.data:
-
                 item["verification_type"] = category
-                item["timestamp"] = item.get("timestamp")
-
                 verification_history.append(item)
 
         verification_history = sorted(
@@ -342,10 +344,7 @@ class VerificationViewSet(viewsets.ModelViewSet):
             key=lambda x: x.get("timestamp") or "",
             reverse=True
         )
-
         return Response(verification_history)
-
-        
 class IssueReportCreateView(generics.CreateAPIView):
     queryset = IssueReport.objects.all()
     serializer_class = IssueReportserializer
