@@ -60,10 +60,9 @@ const StaffTaskTerminal = () => {
   getAuthHeaders()
 );
 
-          // Only accept history if the assignment matches CURRENT task ID
-          const currentVerification = Array.isArray(historyRes.data) 
-            ? historyRes.data.find(rec => rec.assignment_id === taskId) 
-            : null;
+         const currentVerification = Array.isArray(historyRes.data) 
+  ? historyRes.data.find(record => Number(record.assignment_id) === Number(fullTask.id))
+  : null;
 
           return {
             ...p,
@@ -97,8 +96,8 @@ const StaffTaskTerminal = () => {
 
         // STRICTOR FILTER: Match by assignment_id
         const currentVerification = Array.isArray(historyRes.data) 
-          ? historyRes.data.find(record => record.assignment_id === fullTask.id)
-          : null;
+  ? historyRes.data.find(record => Number(record.assignment_id) === Number(fullTask.id))
+  : null;
 
         return {
           ...p,
@@ -123,20 +122,24 @@ const StaffTaskTerminal = () => {
     setLoading(true);
     const taskId = activeVerificationTask.id;
     
+    // Ensure we are checking the actual verification status
+    const allPassed = inspectionItems.every(i => i.last_verification?.is_passed === true);
+
     await axios.patch(`${API}/api/orders/staff/tasks/${taskId}/inspect/`, {
-      is_passed: inspectionItems.every(i => i.last_verification?.is_passed),
+      is_passed: allPassed,
       status: 'PACKED' 
     }, getAuthHeaders());
 
     toast.success("Order Manifest Synchronized!");
     setIsSelectingProduct(false);
     setActiveVerificationTask(null);
-    await fetchData(); // This refreshes the main terminal table automatically
+    fetchData(); 
   } catch (err) {
     toast.error("Finalization failed");
   } finally {
     setLoading(false);
   }
+
 };const updateStatus = async (taskId, status) => {
   try {
     await axios.patch(
@@ -158,7 +161,8 @@ const StaffTaskTerminal = () => {
   }
 };
 
-  const allItemsVerified = inspectionItems.length > 0 && inspectionItems.every(item => item.is_inspected);
+  console.log("Debug Sync:", inspectionItems.map(i => ({ name: i.name, inspected: i.is_inspected })));
+const allItemsVerified = inspectionItems.length > 0 && inspectionItems.every(item => item.is_inspected);
 
   // UI rendering for the Manifest List
   if (isSelectingProduct && activeVerificationTask) {
@@ -428,16 +432,18 @@ if (!isSelectingProduct && activeVerificationTask?.current_product) {
             key={activeVerificationTask.current_product.product_id} 
             product={activeVerificationTask.current_product}
             onBack={async () => {
-
+    // 1. Fetch fresh data for the specific task first
     await refreshInspectionList(activeVerificationTask.id);
 
+    // 2. Clear the current product to return to the list
     setActiveVerificationTask(prev => ({
-      ...prev,
-      current_product: null
+        ...prev,
+        current_product: null
     }));
 
     setIsSelectingProduct(true);
-
+    
+    // 3. Refresh the main stats/tasks
     fetchData();
 }}
             onComplete={async () => {
