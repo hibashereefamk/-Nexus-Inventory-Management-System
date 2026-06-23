@@ -1,17 +1,27 @@
-from django.db import models
 import uuid
+from django.db import models
 from django.utils import timezone
-from app.accounts.models import User, Department
-from app.inventory.models import Product
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+from inventory.models import Product,Department
+from accounts.models import User
 
+
+
+class Customer(models.Model):
+    name = models.CharField(max_length=255)
+    email = models.EmailField()
+    phone = models.CharField(max_length=20)
+    shipping_address = models.TextField()
+    tax_number = models.CharField(max_length=50, blank=True, null=True)
+
+    def __str__(self):
+        return self.name
 
 # -------------------------------
-# ORDER ITEM (Main Order Level)
+# 1. PARENT ORDER MODEL
 # -------------------------------
-class OrderItem(models.Model):
-
+class Order(models.Model):
     ORDER_STATUS = [
         ('DRAFT', 'Draft'),
         ('CONFIRMED', 'Confirmed'),
@@ -21,67 +31,69 @@ class OrderItem(models.Model):
         ('CANCELLED', 'Cancelled'),
     ]
 
-    order_number = models.CharField(max_length=50, blank=True)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    quantity = models.PositiveIntegerField(default=1)
+    order_number = models.CharField(max_length=50, unique=True, editable=False)
+    customer = models.ForeignKey(Customer, on_delete=models.PROTECT, null=True, blank=True)
+    
+    # Financial fields
+    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=18.00)
+    shipping_charges = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    payment_status = models.CharField(max_length=20, default='UNPAID')
 
+    # Shipping details
+    shipping_address = models.TextField(blank=True, null=True)
+    shipping_carrier = models.CharField(max_length=100, blank=True, null=True)
+    tracking_number = models.CharField(max_length=100, blank=True, null=True)
+    
     status = models.CharField(max_length=20, choices=ORDER_STATUS, default='DRAFT')
-
     rejection_reason = models.TextField(null=True, blank=True)
-    target_department = models.ForeignKey(Department, on_delete=models.PROTECT, null=True)
-
+    target_department = models.ForeignKey(Department, on_delete=models.PROTECT, null=True, blank=True)
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def reserve_stock(self):
-        """Increase committed_stock when order is confirmed."""
-        product = self.product
-        if product.available_stock >= self.quantity:
-            product.committed_stock += self.quantity
-            product.save()
-            return True
-        return False
+    def save(self, *args, **kwargs):
+        # കസ്റ്റമർ ഉണ്ടെങ്കിൽ അഡ്രസ്സ് ഓട്ടോമാറ്റിക് ആയി എടുക്കാൻ
+        if self.customer and not self.shipping_address:
+            self.shipping_address = self.customer.shipping_address
 
-    def release_stock(self):
-        """Reduce physical stock when shipment is finalized."""
-        product = self.product
-        product.total_stock -= self.quantity
-        product.committed_stock -= self.quantity
-        product.save()
-
-    def cancel_reservation(self):
-        """If order is cancelled/rejected, give the committed stock back."""
-        product = self.product
-        product.committed_stock -= self.quantity
-        product.save()
+        if not self.order_number:
+            date_str = timezone.now().strftime('%Y%m%d')
+            unique_suffix = uuid.uuid4().hex[:4].upper()
+            self.order_number = f"NEX-{date_str}-{unique_suffix}"
+        super().save(*args, **kwargs)
 
     def confirm_order(self):
         if self.status == 'DRAFT':
-            self.status = 'CONFIRMED'
-            self.save()
-            self.notify_task_update(is_new=True)
+            all_reserved = True
+            for item in self.items.all():
+                if not item.reserve_stock():
+                    all_reserved = False
+                    break
+            
+            if all_reserved:
+                self.status = 'CONFIRMED'
+                self.save()
+                self.notify_task_update(is_new=True)
+            else:
+                self.status = 'ISSUE'
+                self.rejection_reason = "Insufficient inventory stock for one or more items."
+                self.save()
 
     def update_status_from_assignments(self):
-        assignments = self.order_assignments.all()
-
+        assignments = self.order_assignments.all() 
         if assignments.filter(is_cancelled=True).exists():
             self.status = 'CANCELLED'
-
         elif assignments.filter(issue_status__in=['DAMAGED', 'MISSING']).exists():
             self.status = 'ISSUE'
-
-        elif assignments.filter(status='SHIPPED').count() == assignments.count():
+        elif assignments.filter(status='SHIPPED').count() == assignments.count() and assignments.exists():
             self.status = 'SHIPPED'
-
+            for item in self.items.all():
+                item.release_stock()
         else:
             self.status = 'PROCESSING'
-
         self.save()
         self.notify_task_update(is_new=False)
 
-    # -------------------------------
-    # NOTIFICATION
-    # -------------------------------
     def notify_task_update(self, is_new):
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
@@ -94,12 +106,52 @@ class OrderItem(models.Model):
         )
 
     def __str__(self):
-        return f"{self.order_number}"
+        return self.order_number
 
 
 # -------------------------------
-# ORDER ASSIGNMENT (Task Level)
+# 2. CHILD ORDER ITEM MODEL
 # -------------------------------
+class OrderItem(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    quantity = models.PositiveIntegerField(default=1)
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+
+    # ⭐ ഇവിടെയാണ് മാജിക്! പഴയ വ്യൂസ് ഒന്നും മാറാതിരിക്കാൻ ഈ താഴെയുള്ള 2 പ്രോപ്പർട്ടികൾ സഹായിക്കും
+    @property
+    def order_number(self):
+        """മാതൃ ഓർഡറിന്റെ നമ്പർ റിട്ടേൺ ചെയ്യുന്നു"""
+        return self.order.order_number
+
+    @property
+    def status(self):
+        """മാതൃ ഓർഡറിന്റെ സ്റ്റാറ്റസ് റിട്ടേൺ ചെയ്യുന്നു"""
+        return self.order.status
+
+    def reserve_stock(self):
+        product = self.product
+        if product.available_stock >= self.quantity:
+            product.committed_stock += self.quantity
+            product.save()
+            return True
+        return False
+
+    def release_stock(self):
+        product = self.product
+        product.total_stock -= self.quantity
+        product.committed_stock -= self.quantity
+        product.save()
+
+    def cancel_reservation(self):
+        product = self.product
+        product.committed_stock -= self.quantity
+        product.save()
+
+    def __str__(self):
+        return f"{self.quantity} x {self.product.name} (Order: {self.order.order_number})"
+    
+
 class OrderAssignment(models.Model):
 
     # 🔹 Process flow (ONLY workflow)
