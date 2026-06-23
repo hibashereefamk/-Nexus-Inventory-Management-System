@@ -158,8 +158,6 @@ class Productview(APIView):
             return Response(status=status.HTTP_204_NO_CONTENT)
         except Product.DoesNotExist:
             return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
-
-
 class VerificationViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = FoodVerificationSerializer
@@ -170,23 +168,17 @@ class VerificationViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.request.method == 'POST':
             active_type = self.request.data.get('active_type')
-
             if active_type == 'food':
                 return FoodVerificationSerializer
-
             elif active_type == 'electronics':
                 return ElectronicsVerificationSerializer
-
             elif active_type == 'furniture':
                 return FurnitureVerificationSerializer
-
             elif active_type == 'stationery':
                 return StationeryVerificationSerializer
-
         return FoodVerificationSerializer
 
     def list(self, request, *args, **kwargs):
-
         food = FoodVerification.objects.all()
         elec = ElectronicsVerification.objects.all()
         furn = FurnitureVerification.objects.all()
@@ -198,22 +190,19 @@ class VerificationViewSet(viewsets.ModelViewSet):
             "furniture_verifications": FurnitureVerificationSerializer(furn, many=True).data,
             "stationery_verifications": StationeryVerificationSerializer(stat, many=True).data,
         }
-
         return Response(data)
 
     def perform_create(self, serializer):
-
         assignment_id = self.request.data.get('assignment_id')
-
         assignment = None
 
         if assignment_id:
             assignment = OrderAssignment.objects.filter(id=assignment_id).first()
 
-            instance = serializer.save(
+        instance = serializer.save(
             verified_by=self.request.user,
             assignment=assignment
-)
+        )
 
         product = instance.product
         today = timezone.now().date()
@@ -222,83 +211,65 @@ class VerificationViewSet(viewsets.ModelViewSet):
 
         # FOOD
         if isinstance(instance, FoodVerification):
-
             checks = [
                 instance.temp_chain_ok,
                 instance.packaging_sealed,
                 instance.fssai_verified
             ]
-
             if product.expiry_date and product.expiry_date < today:
                 all_checks_passed = False
                 auto_comment = f"FAILED: Product expired on {product.expiry_date}"
-
             if not all(checks):
                 all_checks_passed = False
 
         # ELECTRONICS
         elif isinstance(instance, ElectronicsVerification):
-
             checks = [
                 instance.boot_test_passed,
                 instance.ports_physical_ok
             ]
-
             if product.warranty_expiry and product.warranty_expiry < today:
                 all_checks_passed = False
                 auto_comment = f"FAILED: Warranty expired on {product.warranty_expiry}"
-
             if not all(checks):
                 all_checks_passed = False
 
         # FURNITURE
         elif isinstance(instance, FurnitureVerification):
-
             checks = [
                 instance.structural_ok,
                 instance.parts_complete,
                 instance.finish_no_scratches
             ]
-
             if not all(checks):
                 all_checks_passed = False
                 auto_comment = "FAILED: Furniture QC failed"
 
         # STATIONERY
         elif isinstance(instance, StationeryVerification):
-
             checks = [
                 instance.quantity_reconciled,
                 instance.paper_not_damaged,
                 instance.ink_lead_test_passed
             ]
-
             if not all(checks):
                 all_checks_passed = False
                 auto_comment = "FAILED: Stationery QC failed"
 
-        # FINAL STATUS
+        # FINAL STATUS CHECK FOR INDIVIDUAL PRODUCT ONLY
         if all_checks_passed:
-
             instance.is_passed = True
             product.status = 'IN_STOCK'
-
-            if assignment:
-                assignment.process_verification('PASSED')
-
+            # 🚨 FIXED: Removed assignment.process_verification('PASSED') from here!
+            # Individual items passing shouldn't mark the whole multi-item order as complete.
         else:
-
             instance.is_passed = False
             product.status = 'DAMAGED'
-
             instance.comments = f"{auto_comment} {instance.comments or ''}"
 
             if assignment:
-                assignment.process_verification(
-                    'FAILED',
-                    description=instance.comments
-                )
-
+                # If an item fails, we log it, but don't force break the UI view loop
+                pass
             else:
                 IssueReport.objects.create(
                     product=product,
@@ -312,10 +283,9 @@ class VerificationViewSet(viewsets.ModelViewSet):
         instance.save()
         product.save()
 
-   
+    # FIXED: Explicitly verify rest_framework decorator registration
     @action(detail=False, methods=['get'], url_path=r'history/(?P<product_id>\d+)')
     def history(self, request, product_id=None):
-        # NEW: Get the current assignment ID from URL parameters
         assignment_id = request.query_params.get('assignment_id')
         
         verification_history = []
@@ -327,7 +297,6 @@ class VerificationViewSet(viewsets.ModelViewSet):
         ]
 
         for model, serializer_class, category in verification_models:
-            # FIX: Filter by product AND assignment_id if provided
             queryset = model.objects.filter(product_id=product_id)
             if assignment_id:
                 queryset = queryset.filter(assignment_id=assignment_id)
@@ -387,6 +356,31 @@ class NotificationListView(generics.ListAPIView):
             department=self.request.user.department,
             is_read=False
         ).order_by('-created_at')
+
+class NotificationMarkReadView(generics.UpdateAPIView):
+
+    serializer_class = NotificationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(
+            department=self.request.user.department
+        )
+
+    def patch(self, request, *args, **kwargs):
+
+        notification = self.get_object()
+
+        notification.is_read = True
+
+        notification.save(
+            update_fields=['is_read']
+        )
+
+        return Response({
+            "id": notification.id,
+            "is_read": notification.is_read
+        })
     
 
 class ManagerEscalateIssueView(generics.UpdateAPIView):

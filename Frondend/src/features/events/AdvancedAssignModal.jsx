@@ -39,6 +39,7 @@ const AdvancedAssignModal = ({ selectedTask, staffList, onClose, onRefresh }) =>
   if (!selectedTask) return null
 
   const totalItems = selectedTask.products.reduce((a, b) => a + b.quantity, 0)
+  
 
   return (
     <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">

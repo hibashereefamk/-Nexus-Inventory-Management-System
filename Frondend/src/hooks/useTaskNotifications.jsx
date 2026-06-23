@@ -1,37 +1,81 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react'
 
-const NotificationContext = createContext();
+import axios from 'axios'
+
+const NotificationContext = createContext()
 
 export const NotificationProvider = ({ children }) => {
-    const [notifications, setNotifications] = useState([]);
-    const [unreadCount, setUnreadCount] = useState(0);
-    const token = localStorage.getItem('access_token');
+  const [notifications, setNotifications] = useState([])
 
-    useEffect(() => {
-        if (!token) return;
+  const [unreadCount, setUnreadCount] = useState(0)
 
-        // Establish WebSocket connection
-        const socket = new WebSocket(`ws://127.0.0.1:8000/ws/notifications/?token=${token}`);
+  const token = localStorage.getItem('access_token')
 
-        socket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            // Assuming data contains { type: '...', msg: '...' }
-            setNotifications(prev => [data, ...prev]);
-            setUnreadCount(prev => prev + 1);
-        };
+  const headers = {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  }
 
-        socket.onclose = () => console.log("Notification WebSocket Closed");
+  useEffect(() => {
+    if (!token) return
 
-        return () => socket.close();
-    }, [token]);
+    // Load existing notifications
+    const loadNotifications = async () => {
+      try {
+        const res = await axios.get(
+          'http://127.0.0.1:8000/api/inventory/notifications/',
+          headers
+        )
 
-    const markAsRead = () => setUnreadCount(0);
+        const data = res.data.results || res.data
 
-    return (
-        <NotificationContext.Provider value={{ notifications, unreadCount, markAsRead }}>
-            {children}
-        </NotificationContext.Provider>
-    );
-};
+        setNotifications(data)
 
-export const useNotifications = () => useContext(NotificationContext);
+        setUnreadCount(data.filter(n => !n.is_read).length)
+      } catch (err) {
+        console.log(err)
+      }
+    }
+
+    loadNotifications()
+
+    // websocket
+    const socket = new WebSocket(
+      `ws://127.0.0.1:8000/ws/notifications/?token=${token}`
+    )
+
+    socket.onmessage = event => {
+      const data = JSON.parse(event.data)
+
+      setNotifications(prev => [data, ...prev])
+
+      setUnreadCount(prev => prev + 1)
+    }
+
+    return () => socket.close()
+  }, [token])
+
+ const markAsRead = () =>
+setUnreadCount(
+ prev =>
+ Math.max(
+   prev - 1,
+   0
+ )
+);
+
+  return (
+    <NotificationContext.Provider
+      value={{
+        notifications,
+        unreadCount,
+        markAsRead
+      }}
+    >
+      {children}
+    </NotificationContext.Provider>
+  )
+}
+
+export const useNotifications = () => useContext(NotificationContext)

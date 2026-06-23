@@ -79,7 +79,7 @@ function ManagerWorkflow() {
             {recentTasks.map((task) => (
               <li key={task.id} className="p-3 border rounded-lg flex justify-between items-center">
                 <div>
-                  <span className="font-bold text-blue-600">{task.order_number}</span>
+                  <span className="font-bold text-blue-600">{task.order__order_number}</span>
                   <p className="text-xs text-gray-500">By: {task.staff__username}</p>
                 </div>
                 <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700">

@@ -142,7 +142,8 @@ class OrderAssignment(models.Model):
     manager = models.ForeignKey(User, on_delete=models.CASCADE, related_name='assigned_tasks')
     staff = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='assigned_orders')
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
-
+    shipping_address = models.CharField(max_length=255,null=True, blank=True)  # ✅ TEMPORARY
+    deadline_packing_date = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
     verification_status = models.CharField(max_length=20, choices=VERIFICATION_CHOICES, default='PENDING')
     issue_status = models.CharField(max_length=20, choices=ISSUE_CHOICES, default='NONE')
@@ -241,3 +242,20 @@ class OrderAssignment(models.Model):
 
     def __str__(self):
         return f"{self.order.order_number} - {self.staff.username if self.staff else 'Unassigned'}"
+    
+
+class RestockRequest(models.Model):
+    STATUS_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('APPROVED', 'Approved'),
+        ('REJECTED', 'Rejected'),
+    ]
+
+    staff_member = models.ForeignKey(User, on_delete=models.CASCADE, related_name='restock_requests')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    reason = models.TextField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Restock {self.product.name} by {self.staff_member.username}"

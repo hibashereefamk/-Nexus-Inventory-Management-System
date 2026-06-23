@@ -1,12 +1,11 @@
 :root {
   /* StockSphere Palette */
-  --sidebar-bg: #2d3e40;       /* Dark teal-grey from image */
-  --sidebar-active: #20b2aa;   /* Light teal for active state */
-  --main-bg: #f4f7f6;          /* Light grey background */
-  --card-bg: #ffffff;
-  --text-dark: #333333;
-  --text-light: #ffffff;
-  --border-light: #e0e6ed;
+  --sidebar-bg: #1e293b;       /* Professional deep slate blue-grey */
+  --sidebar-active: #2563eb;   /* Modern crisp blue for primary items */
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --border-color: #334155;
+  --ai-accent: #8b5cf6;       /* Bright professional purple for AI */
 }
 
 .sidebar {
@@ -19,134 +18,162 @@
   position: fixed;
   left: 0;
   top: 0;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'Segoe UI', Inter, sans-serif;
+  border-right: 1px solid var(--border-color);
+  box-sizing: border-box;
 }
 
 /* Nameplate Styling */
 .sidebar-nameplate {
   display: flex;
   align-items: center;
-  padding: 15px 20px;
+  padding: 20px 24px;
   gap: 12px;
 }
 
 .logo-icon {
-  background: var(--accent-blue);
-  color: gray;
-  width: 35px;
-  height: 35px;
+  background: var(--sidebar-active);
+  color: #ffffff;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
-  font-weight: bold;
-  font-size: 20px;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 16px;
 }
 
 .nameplate-text {
   display: flex;
-  color: rgb(173, 172, 172);
   flex-direction: column;
-  line-height: 1;
+  line-height: 1.1;
 }
+
+.brand-name {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text-main);
+}
+
+.brand-sub {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 1.5px;
+}
+
+.sidebar-divider {
+  border: 0;
+  border-top: 1px solid var(--border-color);
+  margin: 0 16px;
+}
+
+/* Navigation Section */
+.sidebar-nav {
+  flex: 1;
+  overflow-y: auto; /* Only menu scrollable if list is too long */
+  padding: 20px 16px;
+}
+
+.sidebar-nav ul, 
+.sidebar-footer ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sidebar-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.75px;
+  color: var(--text-muted);
+  padding-left: 8px;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+/* Links Layout styling */
+.sidebar-nav li a,
+.sidebar-footer li a {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  color: var(--text-muted);
+  text-decoration: none;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.sidebar-nav li a:hover,
+.sidebar-footer li a:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+  color: var(--text-main);
+}
+
+/* Icons styling */
 .nav-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #94a3b8; /* Modern slate-400 color */
-  transition: color 0.2s ease;
+  transition: color 0.15s ease;
 }
 
-.sidebar-nav ul li a:hover .nav-icon,
-.sidebar-nav ul li a.active .nav-icon {
-  color: #ffffff; /* Icons turn white on active/hover */
+.sidebar-nav li a:hover .nav-icon,
+.sidebar-footer li a:hover .nav-icon {
+  color: var(--text-main);
 }
 
 .nav-text {
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 500;
-  margin-left: 12px; /* Consistent spacing */
+  margin-left: 12px;
 }
 
-.brand-name {
-  font-size: 18px;
-  font-weight: 800;
-  letter-spacing: 1.5px;
-  color: rgb(177, 176, 176);
+/* Base Active Links */
+.sidebar-nav li a.active {
+  background-color: var(--sidebar-active);
+  color: #ffffff;
+}
+.sidebar-nav li a.active .nav-icon {
+  color: #ffffff;
 }
 
-.brand-sub {
-  font-size: 10px;
-  font-weight: 400;
-  color: var(--accent-blue);
-  letter-spacing: 2px;
-  margin-top: 2px;
-}
+/* Feature specific styling for Chat and AI */
+.chat-icon { color: var(--chat-accent); }
+.ai-icon { color: var(--ai-accent); }
 
-/* User Role Info */
-.sidebar-user-info {
-  padding: 15px 20px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.user-welcome {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-bottom: 5px;
-}
-
-.role-badge {
-  font-size: 10px;
-  padding: 3px 10px;
-  border-radius: 20px;
-  background: var(--border-color);
-  color: var(--accent-blue);
-  border: 1px solid var(--accent-blue);
-  text-transform: uppercase;
+.sidebar-footer li a.active.chat-active {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: var(--chat-accent);
   font-weight: 600;
 }
 
-/* Navigation */
-.sidebar-nav {
-  flex: 1;
-  padding: 15px 0;
+.sidebar-footer li a.active.ai-active {
+  background-color: rgba(139, 92, 246, 0.15);
+  color: var(--ai-accent);
+  font-weight: 600;
 }
 
-.sidebar-nav ul {
-  list-style: none;
-  padding: 0;
-}
-/* Sidebar.css */
-.sidebar-nav ul li a.active {
-  background-color: #2563eb; /* Blue primary */
+/* Notification Badges */
+.notification-badge {
+  margin-left: auto;
+  background-color: #ef4444;
   color: white;
-  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 10px;
+  line-height: 1;
 }
 
-.sidebar-label {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: #64748b;
-  padding-left: 20px;
-  margin-bottom: 10px;
-  font-weight: bold;
+/* Fixed Footer Container */
+.sidebar-footer {
+  margin-top: auto;
+  padding: 16px;
+  background-color: var(--sidebar-bg);
 }
-.sidebar-nav li a {
-  display: flex;
-  align-items: center;
-  padding: 14px 22px;
-  color: white;
-  text-decoration: none;
-  transition: all 0.2s ease;
-  gap: 15px;
-}
-
-
-
-
-
-
-
-

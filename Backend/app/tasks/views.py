@@ -1,7 +1,6 @@
 from collections import defaultdict
-from urllib import response
 import uuid
-from .serilaizers import OrderAssignmentSerializer,UpdateStatusSerializer,DepartmentManagerSerializer,CategorySerializer,ProductDetailSerializer
+from .serilaizers import OrderAssignmentSerializer,UpdateStatusSerializer,DepartmentManagerSerializer,CategorySerializer,ProductDetailSerializer,ManagerDashboardSerializer
 from rest_framework import generics
 from app.accounts.permissions import IsManager,IsStaffFromDepartment
 from django.utils import timezone
@@ -9,7 +8,7 @@ from django.db.models import Count
 from app.accounts.models import Department
 from app.inventory.models import Category, Product, Notification,IssueReport
 from app.inventory.seriliazers import ProductSerializer
-from django.db.models import Q
+from django.db.models import Q,F
 
 from rest_framework.exceptions import ValidationError
 from django.db import transaction
@@ -29,7 +28,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 from .models import OrderAssignment
 from app.accounts.permissions import IsManager
-
+from .models import RestockRequest
 from rest_framework import generics, permissions
 from .models import OrderAssignment
 from .serilaizers import OrderAssignmentSerializer # Ensure the spelling matches your file
@@ -275,6 +274,168 @@ class AdminOrderConfirmView(APIView):
         )
 
         return Response({"message": f"{order_number} confirmed and stock reserved."})
+    
+
+class ManagerReworkAssignmentView(APIView):
+    """
+    POST /api/orders/manager/assignments/<id>/rework/
+    Reverts an assignment to PACKING state and appends audit instructions for the staff.
+    """
+    permission_classes = [IsAuthenticated, IsManager]
+
+    def post(self, request, pk):
+        assignment = get_object_or_404(OrderAssignment, pk=pk)
+        manager_note = request.data.get("note", "Verification failed. Rework required.")
+
+        with transaction.atomic():
+            # Reset workflow status to put it back onto the staff member's active terminal
+            assignment.status = 'PACKING'
+            assignment.verification_status = 'PENDING'
+            assignment.approval_status = 'PENDING'
+            assignment.save()
+
+            # Optional: Log the remark context back to the primary OrderItems
+            OrderItem.objects.filter(order_number=assignment.order.order_number).update(
+                status='PROCESSING',
+                rejection_reason=manager_note
+            )
+
+            # Alert staff member via Notification model instance
+            Notification.objects.create(
+                title="Rework Ordered",
+                message=f"Order {assignment.order.order_number} returned for rework: {manager_note}",
+                user=assignment.staff,
+                department=assignment.department,
+                created_by=self.request.user,
+                notification_type='REJECTED'
+            )
+
+        return Response({"message": "Task reverted to packing workflow for staff rework."}, status=status.HTTP_200_OK)
+
+
+class ManagerForceCycleCountView(APIView):
+    """
+    POST /api/orders/manager/assignments/<id>/force-cycle-count/
+    Flags a shelf/product slot location variance and logs an urgent cycle count ticket.
+    """
+    permission_classes = [IsAuthenticated, IsManager]
+
+    def post(self, request, pk):
+        assignment = get_object_or_404(OrderAssignment, pk=pk)
+        product = assignment.order.product 
+        manager_note = request.data.get("note", "Mismatched quantities found during audit layers.")
+
+        with transaction.atomic():
+            # Create a localized cycle count alert inside your existing IssueReport infrastructure
+            IssueReport.objects.create(
+                product=product,
+                reported_by=request.user, # Reported by Manager
+                department=assignment.department,
+                type="DISCREPANCY",
+                description=f"URGENT CYCLE COUNT FORCED: {manager_note}. Verify physical layout.",
+                urgency="HIGH"
+            )
+            
+            # Reset verification layers safely
+            assignment.verification_status = 'FAILED'
+            assignment.save()
+
+        return Response({"message": "Location discrepancy registered. Urgent physical cycle count scheduled."}, status=status.HTTP_201_CREATED)
+
+class ManagerWriteOffQuarantineView(APIView):
+    """
+    POST /api/orders/manager/assignments/<id>/quarantine-writeoff/
+    Manager confirms item mutilation, removes it from active inventory stock pools, 
+    and opens a validation request ticket for Admins to adjust accounts.
+    """
+    permission_classes = [IsAuthenticated, IsManager]
+
+    def post(self, request, pk):
+        assignment = get_object_or_404(OrderAssignment, pk=pk)
+        product = assignment.order.product
+        quantity_damaged = assignment.order.quantity
+
+        with transaction.atomic():
+            # Decrement inventory stock pool maps
+            product.total_stock = max(0, product.total_stock - quantity_damaged)
+            if hasattr(product, 'committed_stock'):
+                product.committed_stock = max(0, product.committed_stock - quantity_damaged)
+            product.save()
+
+            # Append issue dispatch request to Admin dashboard review stack
+            IssueReport.objects.create(
+                product=product,
+                assignment=assignment,
+                reported_by=request.user,
+                department=assignment.department,
+                type="DAMAGE",
+                description=f"Manager requested physical quarantine & stock write-off for {quantity_damaged} units.",
+                urgency="HIGH",
+                is_escalated_to_admin=True # Pushes directly to AdminResolveIssueView
+            )
+
+        return Response({"message": "Inventory pool updated. Stock moved to isolation; write-off pending Admin confirmation."}, status=status.HTTP_200_OK)
+
+
+class ManagerEscalateToBackorderView(APIView):
+    """
+    POST /api/orders/manager/assignments/<id>/escalate-backorder/
+    Puts the task out of commission when safety buffers fall to zero, routing to Admin for fulfillment splits.
+    """
+    permission_classes = [IsAuthenticated, IsManager]
+
+    def post(self, request, pk):
+        assignment = get_object_or_404(OrderAssignment, pk=pk)
+        
+        with transaction.atomic():
+            # Halt current task state progression safely
+            assignment.status = 'PENDING'
+            assignment.verification_status = 'FAILED'
+            assignment.save()
+
+            # Transition original order group items into an unfulfilled BACKORDER holding pattern
+            OrderItem.objects.filter(order_number=assignment.order.order_number).update(
+                status='PROCESSING', # Reverts confirmation phase
+                rejection_reason="Escalated by Manager to Admin: Out of Stock (Backordered Fallback)"
+            )
+
+            # Generate explicit system visibility request
+            IssueReport.objects.create(
+                product=assignment.order.product,
+                assignment=assignment,
+                reported_by=request.user,
+                department=assignment.department,
+                type="MISSING",
+                description="Zero stock safety threshold reached. Requesting Admin to trigger order-split or backorder communication flows.",
+                urgency="HIGH",
+                is_escalated_to_admin=True
+            )
+
+        return Response({"message": "Workflow locked. Escalated to administration tier for Backorder processing."}, status=status.HTTP_200_OK)
+class ManagerFlagStaffIncidentView(APIView):
+    """
+    POST /api/orders/manager/staff/<username>/flag-incident/
+    Logs an explicit performance failure marker directly on the employee profile context.
+    """
+    permission_classes = [IsAuthenticated, IsManager]
+
+    def post(self, request, username):
+        staff_member = get_object_or_404(User, username=username, role='staff')
+        reason = request.data.get("reason", "Repeated packaging or auditing error variance.")
+
+        # In a real ERP system, you can either save this to an explicit 
+        # StaffIncident/Profile model or increment an error counter field.
+        # Example using a Notification system to alert HR and the User:
+        Notification.objects.create(
+            title="Operational Quality Incident Flagged",
+            
+            created_by=self.request.user, 
+            message=f"KPI Incident marked against performance metrics: {reason}",
+            user=staff_member,
+            notification_type='REJECTED'
+        )
+
+        return Response({"message": f"Performance incident file registered against staff: @{username}"}, status=status.HTTP_200_OK)
 class ManagerAssignmentListView(APIView):
     """
     GET /api/manager-assignments/
@@ -385,6 +546,7 @@ class ManagerApproveOrderView(generics.RetrieveUpdateAPIView):
         # Also ensure department is passed to avoid the previous IntegrityError
         Notification.objects.create(
             title="Manager Decision",
+            created_by=self.request.user, 
             message=f"Order {assignment.order.order_number} {decision.lower()}: {remarks}",
             user=assignment.staff,
             department=assignment.department,
@@ -392,12 +554,9 @@ class ManagerApproveOrderView(generics.RetrieveUpdateAPIView):
         )
     
 class ManagerDashboardStats(APIView):
-    permission_classes = [IsAuthenticated,IsManager]
+    permission_classes = [IsAuthenticated, IsManager]
 
     def get(self, request):
-        user = request.user
-        
-        # 1. Define the filter (using an empty Q object to see everything)
         filter_q = Q() 
 
         # 2. Get staff count grouped by department
@@ -426,11 +585,16 @@ class ManagerDashboardStats(APIView):
         )
 
         # 5. Generate Alerts
-        low_stock_products = Product.objects.filter(filter_q)
+        low_stock_products = Product.objects.filter(
+    total_stock__lte=F('min_stock_level')
+)[:5]
         alerts = [
-            {"id": f"stock_{p.id}", "message": f"Low Stock: {p.name} ({p.total_stock} left)"}
-            for p in low_stock_products if p.is_low_stock
-        ]
+    {
+        "id": f"stock_{p.id}",
+        "message": f"Low Stock: {p.name} ({p.total_stock} left)"
+    }
+    for p in low_stock_products
+]
 
         # 6. CRITICAL FIX: Ensure you actually RETURN the Response object
         return Response({
@@ -438,7 +602,89 @@ class ManagerDashboardStats(APIView):
             "staff_per_dept": list(staff_per_dept),
             "recent_tasks": list(recent_tasks),
             "alerts": alerts
-        })    
+        })
+    
+
+class ManagerRestockQueueView(APIView):
+    # You can add custom permissions here to ensure only managers can access it
+    
+    def get(self, request):
+        # Fetch all pending restock requests ordered by newest first
+        requests = RestockRequest.objects.filter(status='PENDING').order_by('-created_at')
+        
+        data = [
+            {
+                "id": r.id,
+                "staff_username": r.staff_member.username,
+                "product_name": r.product.name,
+                "sku": r.product.sku,
+                "current_stock": r.product.total_stock,
+                "reason": r.reason,
+                "date": r.created_at.strftime("%Y-%m-%d %H:%M")
+            }
+            for r in requests
+        ]
+        return Response(data, status=status.HTTP_200_OK)
+
+    def patch(self, request, pk):
+        try:
+            restock_req = RestockRequest.objects.get(id=pk)
+        except RestockRequest.DoesNotExist:
+            return Response({'error': 'Request not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        new_status = request.data.get('status') # 'APPROVED' or 'REJECTED'
+        if new_status in ['APPROVED', 'REJECTED']:
+            with transaction.atomic():
+                restock_req.status = new_status
+                restock_req.save()
+
+                # --- ADVANCED ERP ROUTING CONNECTION ---
+                if new_status == 'APPROVED':
+                    # Create an administrative inventory issue to request a new Purchase Order (PO)
+                    IssueReport.objects.create(
+                        product=restock_req.product,
+                        reported_by=request.user,
+                        department=restock_req.product.department,
+                        type="STOCK_SHORTAGE",
+                        description=f"Restock Request Approved by Manager. Generate PO for SKU: {restock_req.product.sku}.",
+                        urgency="MEDIUM",
+                        is_escalated_to_admin=True # Instantly viewable on Admin's issue pipeline
+                    )
+
+            return Response({'message': f'Request status updated to {new_status} and procurement pipeline notified.'})
+        
+        return Response({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
+
+class RequestRestockView(APIView):
+    def get(self,request):
+        user =request.user
+        product_id =request.query_params.get('product_id')
+        low_stock_products =Product.objects.filter(total_stock__lte=5)
+        alerts = [
+            {
+                "id": f"stock_{p.id}", 
+                "message": f"I want to restock {p.name} because of the mentioned issue ({p.total_stock} left)"
+            }
+            for p in low_stock_products
+        ]
+        product_data =None
+        if product_id:
+            product_data =Product.objects.filter(id=product_id).values('id','name').first()
+        return Response({
+            'product': product_data,
+            'user': str(user), # passing user object directly can cause serialization errors
+            'alerts': alerts,
+        })
+    def post(self,request):
+        text_reason =request.data.get('text','')
+        if not text_reason:
+            return Response({'error':'Reason Text is required'},status=status.HTTP_400_BAD_REQUEST)
+        return Response({
+            'message': 'Restock request received successfully',
+            'text': text_reason
+        }, status=status.HTTP_201_CREATED)
+    
+    
 
 class StaffDashboardTasksView(generics.ListAPIView):
     serializer_class = OrderAssignmentSerializer
@@ -537,7 +783,6 @@ class StaffCreateIssueView(APIView):
         })
 
 
-
 class StaffTaskInspectView(generics.UpdateAPIView):
     serializer_class = OrderAssignmentSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -565,29 +810,28 @@ class StaffTaskInspectView(generics.UpdateAPIView):
             # -------------------------------
             # ✅ TRIGGER MODEL BUSINESS LOGIC
             # -------------------------------
-            # This updates verification_status, issue_status, and OrderItem status
             if is_passed:
                 assignment.process_verification('PASSED')
             else:
-                # If expired or failed, this creates the IssueReport
                 assignment.process_verification('FAILED', description=comments)
 
-            # -------------------------------
-            # ✅ PRODUCT STOCK & EXPIRY LOGIC
-            # -------------------------------
+            # FIXED: Moved stock metrics deduction block safely back inside perform_update scope
             if is_passed:
                 # Basic Stock Check
                 if product.total_stock < order_item.quantity:
                     raise ValidationError(f"Insufficient stock for {product.name}")
-
-                # Final Physical Deduction (Only on PASS)
+                
+                # Deduct from Physical Total Stock
                 product.total_stock -= order_item.quantity
+        
+                # Deduct from Reserved Allocation to prevent validation overrides
+                if hasattr(product, 'committed_stock'):
+                    product.committed_stock = max(0, product.committed_stock - order_item.quantity)
+
                 product.save()
             else:
-                # If FAILED, we mark the product as DAMAGED in the inventory
                 product.status = 'DAMAGED'
                 product.save()
-
 class TaskStatsView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 

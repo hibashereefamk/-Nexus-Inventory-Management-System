@@ -1,4 +1,5 @@
 
+from django.utils.timesince import timesince
 from rest_framework import serializers
 from .models import ( Product,Category,IssueReport,Notification,
     FoodVerification, FurnitureVerification, 
@@ -68,9 +69,58 @@ class IssueReportserializer(serializers.ModelSerializer):
         return data
 
 class NotificationSerializer(serializers.ModelSerializer):
+
+    department_name = serializers.CharField(
+        source='department.name',
+        read_only=True
+    )
+
+    product_name = serializers.CharField(
+        source='product.name',
+        read_only=True
+    )
+
+    recipient_name = serializers.CharField(
+        source='user.username',
+        read_only=True
+    )
+
+    created_by_name = serializers.CharField(
+        source='created_by.username',
+        read_only=True
+    )
+
+    time_ago = serializers.SerializerMethodField()
+
     class Meta:
-        model =Notification
-        fields ='__all__'
+        model = Notification
+        fields = [
+            'id',
+            'title',
+            'message',
+
+            'department',
+            'department_name',
+
+            'user',
+            'recipient_name',
+
+            'created_by',
+            'created_by_name',
+
+            'product',
+            'product_name',
+
+            'notification_type',
+            'is_emergency',
+            'is_read',
+
+            'created_at',
+            'time_ago',
+        ]
+
+    def get_time_ago(self, obj):
+        return timesince(obj.created_at) + " ago"
 
 
 

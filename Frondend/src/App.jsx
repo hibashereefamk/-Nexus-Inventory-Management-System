@@ -27,10 +27,11 @@ import ApprovalsView from "./features/events/ApprovalsView.jsx";
 import AnalyticsView from "./features/events/AnalyticsView.jsx";
 import MonitoringView from "./features/events/MonitoringView.jsx";
 import SystemLogsTable from "./features/events/SystemLogsTable.jsx";
-import { NotificationProvider } from "./hooks/useTaskNotifications.jsx";
 import ProductList from "./features/events/ProductList.jsx";
 import StaffTasksView from "./features/events/StaffTasksView.jsx";
 import ManagerOrderReview from "./features/events/OrderDetailView.jsx";
+import NotificationPanel from "./features/events/NotificationPanel.jsx";
+import { NotificationProvider } from "./hooks/useTaskNotifications.jsx";
 
 
 function App() {
@@ -64,6 +65,7 @@ function App() {
     <Route path="/manager/performance" element={<ManagerPerformance/>}/>
     <Route path="/manager/order-review/:taskId" element={<ManagerOrderReview/>}/>
     <Route path="/help" element={<HelpPage/>}/>
+    <Route path="/notifications" element={<NotificationPanel apiBase="http://127.0.0.1:8000" headers={{ headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }}} />}/>
     <Route path="/profile" element={<ProfilePage/>}/>
     <Route path="/admin/operations" element={<OperationsView/>}/>
     <Route path="/admin/reports" element={<ApprovalsView/>}/>

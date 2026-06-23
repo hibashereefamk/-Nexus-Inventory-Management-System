@@ -71,7 +71,7 @@ class Product(models.Model):
     @property
     def is_low_stock(self):
         # Professional ERPs use available_stock for low-stock alerts, not total_stock
-        return self.available_stock <= self.min_stock_leve
+        return self.available_stock <= self.min_stock_level
     def update_inventory_status(self):
         """
         Sets status based on availability, not just physical presence.
@@ -159,14 +159,39 @@ def log_inventory_activity(sender, instance, created, **kwargs):
     # User is None here because signals don't natively track the 'request' user
     SystemLog.log_event(user=None, action=action_msg) # Same product name can exist in different departments
 class Notification(models.Model):
-    TYPES = [('LOW_STOCK', 'Low Stock'), ('DAMAGE', 'Damage'), ('EXPIRY', 'Expired'),('ISSUE', 'Issue Reported')]
+
+    TYPES = [
+        ('LOW_STOCK', 'Low Stock'),
+        ('DAMAGE', 'Damage'),
+        ('EXPIRY', 'Expired'),
+        ('ISSUE', 'Issue Reported')
+    ]
 
     title = models.CharField(max_length=100)
     message = models.TextField()
-    department = models.ForeignKey(Department, on_delete=models.CASCADE)
-    user =models.ForeignKey(User, on_delete=models.CASCADE,null=True, blank=True)
-    notification_type = models.CharField(max_length=20, choices=TYPES ,null=True, blank=True)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, null=True, blank=True)
+
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_notifications'
+    )
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='received_notifications'
+    )
+
+    department = models.ForeignKey(
+        Department,on_delete=models.CASCADE)
+
+    notification_type = models.CharField( max_length=20,choices=TYPES,null=True,blank=True)
+    product = models.ForeignKey( Product, on_delete=models.CASCADE,null=True, blank=True)
+
     is_emergency = models.BooleanField(default=False)
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)

@@ -1,106 +1,132 @@
-import React, { useState,useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import './TopNavbar.css';
 import { Bell } from 'lucide-react';
+import './TopNavbar.css';
+
 import { useNotifications } from '../../hooks/useTaskNotifications';
 
-function TopNavbar ({ notifications, badgeCount, resetBadge }) {
-  const [open, setOpen] = useState(false);
-  const navigate = useNavigate();
-  const { unreadCount, markAsRead } = useNotifications();
+function TopNavbar() {
 
-  const username = localStorage.getItem('username') || 'User';
-  const role = localStorage.getItem('role_display') || '';
+  const navigate = useNavigate();
+
+  const [open, setOpen] = useState(false);
+
+  const {
+    unreadCount
+  } = useNotifications();
+console.log("Unread:", unreadCount);
+  const username =
+    localStorage.getItem('username') || 'User';
+
+  const role =
+    localStorage.getItem('role_display') || '';
 
   const handleNotificationClick = () => {
-    // Use notifications from props
-    navigate('/inventory/alerts', { state: { alerts: notifications } });
-    resetBadge();
+    navigate('/notifications');
   };
-  const Clickhelp=()=>{
-    navigate('/help')
-  }
 
-  useEffect(() => {
-    // ✅ FIX 2: WebSocket connection
-    const socket = new WebSocket('ws://127.0.0.1:8000/ws/notifications/');
-
-    socket.onopen = () => {
-      console.log("WebSocket Connected");
-    };
-
-    socket.onmessage = (event) => {
-      // ✅ FIX 3: Correct JSON parsing
-      const data = JSON.parse(event.data);
-
-      console.log("New Alert:", data.message);
-
-      setNotifications(prev => [data.message, ...prev]);
-      setBadgeCount(prev => prev + 1);
-
-      alert("Inventory Alert: " + data.message);
-    };
-
-    socket.onerror = (error) => {
-      console.error("WebSocket Error:", error);
-    };
-
-    socket.onclose = () => {
-      console.log("WebSocket Disconnected");
-    };
-
-    return () => socket.close();
-  }, []);
-
+  const Clickhelp = () => {
+    navigate('/help');
+  };
 
   return (
     <div className="top-navbar">
+
       <div className="top-left"></div>
 
       <div className="top-right">
-        <div className="relative cursor-pointer" onClick={markAsRead}>
-        <span>Notification</span>
-        <Bell size={20} className="text-slate-600" />
-        {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[9px] w-4 h-4 flex items-center justify-center rounded-full border-2 border-white">
 
-            {unreadCount}
-          </span>
-        )}
-      </div>
+        {/* Notification */}
+        <div
+  className="relative cursor-pointer inline-flex items-center"
+  onClick={handleNotificationClick}
+>
+
+          <Bell
+            size={20}
+            className="
+              text-slate-700
+              hover:text-blue-600
+            "
+          />
+
+          {unreadCount > 0 && (
+
+            <span
+  className="
+    absolute
+    -top-2
+    -right-2
+    bg-red-500
+    text-white
+    text-[10px]
+    min-w-[18px]
+    h-[18px]
+    rounded-full
+    flex
+    items-center
+    justify-center
+    font-bold
+    z-50
+  "
+>
+  {unreadCount > 99 ? '99+' : unreadCount}
+</span>
+
+          )}
+
+        </div>
 
         {/* Help */}
-        <div className="nav-item" onClick={Clickhelp}>
-          <span className="icon">❓</span>
-          <span>Help</span>
+        <div
+          className="nav-item"
+          onClick={Clickhelp}
+        >
+          ❓ Help
         </div>
 
         {/* Profile */}
-        <div 
+        <div
           className="profile-menu"
           onClick={() => setOpen(!open)}
         >
+
           <span className="avatar">
-            {username.charAt(0).toUpperCase()}
+            {username[0].toUpperCase()}
           </span>
 
-          <div style={{ display: 'flex', flexDirection: "column" }}>
-            <span>{username} - {role}</span>
+          <div>
+
+            <span>
+              {username} - {role}
+            </span>
 
             {open && (
               <div className="dropdown">
-                <p onClick={() => navigate('/profile')}>Profile</p>
-                <p onClick={() => navigate('/help')}>help</p>
-                <p onClick={() => navigate('/login')}>Logout</p>
-                 
+
+                <p onClick={() => navigate('/profile')}>
+                  Profile
+                </p>
+
+                <p onClick={() => navigate('/help')}>
+                  Help
+                </p>
+
+                <p onClick={() => navigate('/login')}>
+                  Logout
+                </p>
+
               </div>
             )}
+
           </div>
+
         </div>
 
       </div>
+
     </div>
   );
-};
+}
 
 export default TopNavbar;
