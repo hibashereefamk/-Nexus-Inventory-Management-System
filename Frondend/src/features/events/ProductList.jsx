@@ -32,6 +32,7 @@ const ProductFormModal = ({
   const [formData, setFormData] = useState({
     name: '',
     sku: '',
+    price: '',
     category: '',
     department: '',
     status: 'IN_STOCK',
@@ -54,20 +55,20 @@ const ProductFormModal = ({
   })
 
   useEffect(() => {
-  if (isOpen && existingProduct) {
-    setFormData({
-      ...existingProduct,
+    if (isOpen && existingProduct) {
+      setFormData({
+        ...existingProduct,
 
-      expiry_date: existingProduct.expiry_date
-        ? existingProduct.expiry_date.split('T')[0]
-        : '',
+        expiry_date: existingProduct.expiry_date
+          ? existingProduct.expiry_date.split('T')[0]
+          : '',
 
-      warranty_expiry: existingProduct.warranty_expiry
-        ? existingProduct.warranty_expiry.split('T')[0]
-        : ''
-    })
-  }
-}, [isOpen, existingProduct])
+        warranty_expiry: existingProduct.warranty_expiry
+          ? existingProduct.warranty_expiry.split('T')[0]
+          : ''
+      })
+    }
+  }, [isOpen, existingProduct])
 
   if (!isOpen) return null
 
@@ -78,84 +79,81 @@ const ProductFormModal = ({
   const sectionTitle =
     'text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 pb-2 border-b border-slate-100'
   const handleSubmit = async () => {
-  try {
-    const config = {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('access_token')}`
+    try {
+      const config = {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('access_token')}`
+        }
       }
-    }
 
-    // clone formData
-    const payload = {
-      ...formData
-    }
+      const payload = {
+        ...formData,
+        price: formData.price ? parseFloat(formData.price) : 0.0
+      }
 
-    // FOOD department
-    if (selectedDepartment?.slug === 'food') {
-      payload.warranty_expiry = null
+      // FOOD department
+      if (selectedDepartment?.slug === 'food') {
+        payload.warranty_expiry = null
 
-      // empty => null
-      if (!payload.expiry_date) {
+        // empty => null
+        if (!payload.expiry_date) {
+          payload.expiry_date = null
+        }
+      }
+
+      // ELECTRONICS department
+      else if (selectedDepartment?.slug === 'electronics') {
         payload.expiry_date = null
+
+        // empty => null
+        if (!payload.warranty_expiry) {
+          payload.warranty_expiry = null
+        }
       }
-    }
 
-    // ELECTRONICS department
-    else if (selectedDepartment?.slug === 'electronics') {
-      payload.expiry_date = null
-
-      // empty => null
-      if (!payload.warranty_expiry) {
+      // OTHER departments
+      else {
+        payload.expiry_date = null
         payload.warranty_expiry = null
       }
-    }
 
-    // OTHER departments
-    else {
-      payload.expiry_date = null
-      payload.warranty_expiry = null
-    }
+      console.log(payload)
 
-    console.log(payload)
+      if (!existingProduct) {
+        await axios.post(
+          'http://127.0.0.1:8000/api/inventory/products/',
+          payload,
+          config
+        )
 
-    if (!existingProduct) {
-      await axios.post(
-        'http://127.0.0.1:8000/api/inventory/products/',
-        payload,
-        config
-      )
+        toast.success('Product created successfully')
+      } else {
+        await axios.patch(
+          `http://127.0.0.1:8000/api/inventory/products/${existingProduct.id}/`,
+          payload,
+          config
+        )
 
-      toast.success('Product created successfully')
-    } else {
-      await axios.patch(
-        `http://127.0.0.1:8000/api/inventory/products/${existingProduct.id}/`,
-        payload,
-        config
-      )
-
-      toast.success('Product updated successfully')
-    }
-
-    onSave()
-    onClose()
-
-  } catch (err) {
-    console.log(err.response?.data)
-
-    const errors = err.response?.data
-
-    Object.keys(errors || {}).forEach(field => {
-      const message = errors[field][0]
-
-      if (typeof message === 'string') {
-        toast.error(message)
+        toast.success('Product updated successfully')
       }
-    })
+
+      onSave()
+      onClose()
+    } catch (err) {
+      console.log(err.response?.data)
+
+      const errors = err.response?.data
+
+      Object.keys(errors || {}).forEach(field => {
+        const message = errors[field][0]
+
+        if (typeof message === 'string') {
+          toast.error(message)
+        }
+      })
+    }
   }
-}
-  const selectedDepartment = departments?.find(
-  d => d.id == formData.department
-);
+  const selectedDepartment = departments?.find(d => d.id == formData.department)
   return (
     <div className='fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[250] flex justify-center items-center p-4'>
       <div className='bg-[#f8fafc] rounded-xl shadow-2xl w-full max-w-6xl flex flex-col max-h-[95vh] overflow-hidden border border-white/20'>
@@ -214,6 +212,19 @@ const ProductFormModal = ({
                   />
                 </div>
                 <div>
+                  <label className={labelClass}>Price</label>
+                  <input
+                    type='number'
+                    step='0.01'
+                    className={`${inputClass} font-mono`}
+                    value={formData.price}
+                    onChange={e =>
+                      setFormData({ ...formData, price: e.target.value })
+                    }
+                    placeholder='300.00'
+                  />
+                </div>
+                <div>
                   <label className={labelClass}>Priority Level</label>
                   <select
                     className={inputClass}
@@ -235,7 +246,9 @@ const ProductFormModal = ({
                     onChange={e =>
                       setFormData({ ...formData, department: e.target.value })
                     }
-                  > <option value="">Select Department</option>
+                  >
+                    {' '}
+                    <option value=''>Select Department</option>
                     {departments?.map(d => (
                       <option key={d.id} value={d.id}>
                         {d.name}
@@ -251,7 +264,9 @@ const ProductFormModal = ({
                     onChange={e =>
                       setFormData({ ...formData, category: e.target.value })
                     }
-                  > <option value="">Select Category</option>
+                  >
+                    {' '}
+                    <option value=''>Select Category</option>
                     {categories?.map(c => (
                       <option key={c.id} value={c.id}>
                         {c.name}
@@ -269,29 +284,25 @@ const ProductFormModal = ({
               <div>
                 <label className={labelClass}>Current Status</label>
                 <select
-                className={`${inputClass} appearance-none bg-white font-bold ${
-    formData.status === 'IN_STOCK'
-      ? 'text-green-600'
-
-      : formData.status === 'RESERVED'
-      ? 'text-blue-600'
-
-      : formData.status === 'DAMAGED'
-      ? 'text-red-600'
-
-      : formData.status === 'OUT_OF_STOCK'
-      ? 'text-orange-600'
-
-      : formData.status === 'LOW_STOCK'
-      ? 'text-yellow-600'
-
-      : 'text-slate-600'
-  }`}
+                  className={`${inputClass} appearance-none bg-white font-bold ${
+                    formData.status === 'IN_STOCK'
+                      ? 'text-green-600'
+                      : formData.status === 'RESERVED'
+                      ? 'text-blue-600'
+                      : formData.status === 'DAMAGED'
+                      ? 'text-red-600'
+                      : formData.status === 'OUT_OF_STOCK'
+                      ? 'text-orange-600'
+                      : formData.status === 'LOW_STOCK'
+                      ? 'text-yellow-600'
+                      : 'text-slate-600'
+                  }`}
                   value={formData.status}
                   onChange={e =>
                     setFormData({ ...formData, status: e.target.value })
                   }
-                ><option value='IN_STOCK'>In Stock</option>
+                >
+                  <option value='IN_STOCK'>In Stock</option>
                   <option value='RESERVED'>Reserved</option>
                   <option value='LOW_STOCK'>Low Stock</option>
                   <option value='DAMAGED'>Damaged / Repair</option>
@@ -440,52 +451,49 @@ const ProductFormModal = ({
               </div>
             </div>
           </div>
-<div className='bg-white p-6 rounded-xl border border-slate-200 shadow-sm'>
-  <h4 className={sectionTitle}>
-    <Calendar size={16} className='text-purple-500' />
-    Timeline & Deadlines
-  </h4>
+          <div className='bg-white p-6 rounded-xl border border-slate-200 shadow-sm'>
+            <h4 className={sectionTitle}>
+              <Calendar size={16} className='text-purple-500' />
+              Timeline & Deadlines
+            </h4>
 
-  <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6'>
+            <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6'>
+              {selectedDepartment?.slug === 'food' && (
+                <div>
+                  <label className={labelClass}>Expiry Date</label>
 
-    {selectedDepartment?.slug === 'food' && (
-      <div>
-        <label className={labelClass}>Expiry Date</label>
+                  <input
+                    type='date'
+                    className={inputClass}
+                    value={formData.expiry_date || ''}
+                    onChange={e =>
+                      setFormData({
+                        ...formData,
+                        expiry_date: e.target.value
+                      })
+                    }
+                  />
+                </div>
+              )}
 
-        <input
-          type='date'
-          className={inputClass}
-          value={formData.expiry_date || ''}
-          onChange={(e) =>
-            setFormData({
-              ...formData,
-              expiry_date: e.target.value
-            })
-          }
-        />
-      </div>
-    )}
+              {selectedDepartment?.slug === 'electronics' && (
+                <div>
+                  <label className={labelClass}>Warranty Expiry</label>
 
-    {selectedDepartment?.slug === 'electronics' && (
-      <div>
-        <label className={labelClass}>Warranty Expiry</label>
-
-        <input
-          type='date'
-          className={inputClass}
-          value={formData.warranty_expiry  || ''}
-          onChange={(e) =>
-            setFormData({
-              ...formData,
-              warranty_expiry: e.target.value
-            })
-          }
-        />
-      </div>
-    )}
-
-  </div>
-
+                  <input
+                    type='date'
+                    className={inputClass}
+                    value={formData.warranty_expiry || ''}
+                    onChange={e =>
+                      setFormData({
+                        ...formData,
+                        warranty_expiry: e.target.value
+                      })
+                    }
+                  />
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -522,9 +530,6 @@ const ProductList = () => {
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [categories, setCategories] = useState([])
   const [departments, setDepartments] = useState([])
-
-  // Mock financial data (since your current backend might not provide it yet)
-  const getFinValue = stock => (stock * 150).toLocaleString()
 
   const fetchData = async () => {
     try {
@@ -675,7 +680,7 @@ const ProductList = () => {
                   {/* Financials */}
                   <td className='p-4 text-right'>
                     <div className='text-sm font-bold text-slate-700'>
-                      ${getFinValue(product.total_stock)}
+                      ${product.price * product.total_stock}
                     </div>
                     <div className='text-[10px] text-slate-400 uppercase underline decoration-dotted'>
                       Total Valuation

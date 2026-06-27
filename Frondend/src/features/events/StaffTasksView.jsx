@@ -1,6 +1,9 @@
 import NotificationPanel from './NotificationPanel'
 import React, { useEffect, useState, useCallback } from 'react'
 import axios from 'axios'
+import { useNavigate } from "react-router-dom";
+
+
 import {
   FiPackage,
   FiClock,
@@ -20,6 +23,7 @@ const StaffTaskTerminal = () => {
   const [stats, setStats] = useState({ pending: 0, packing: 0, packed: 0 })
   const [activeVerificationTask, setActiveVerificationTask] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const navigate = useNavigate();
   const [lastSynced, setLastSynced] = useState(new Date().toLocaleTimeString())
   const [inspectionItems, setInspectionItems] = useState([])
   const [isSelectingProduct, setIsSelectingProduct] = useState(false)
@@ -623,11 +627,19 @@ const StaffTaskTerminal = () => {
                         Rejected By Manager
                       </span>
                     )}
-                    {task.status === 'SHIPPED' && (
-                      <span className='inline-flex items-center px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black uppercase tracking-widest rounded-full'>
-                        ✔ Shipment Dispatched
-                      </span>
-                    )}
+                    {
+  task.status === "PACKED" &&
+  task.approval_status === "APPROVED" && (
+    <button
+      onClick={() =>
+        navigate(`/staff/order-review/${task.id}`)
+      }
+      className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
+    >
+      Review Order
+    </button>
+  )
+}
                   </div>
                 </td>
               </tr>

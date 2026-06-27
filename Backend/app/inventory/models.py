@@ -42,8 +42,7 @@ class Product(models.Model):
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
     sku = models.CharField(max_length=50, unique=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='IN_STOCK')
-
-    # Essential Department Fields (Keep these for quick filtering/reporting)
+    price = models.DecimalField(max_digits=10, decimal_places=2,default=300.00)
     expiry_date = models.DateField(null=True, blank=True)
     warranty_expiry = models.DateField(null=True, blank=True) # Defined only once
     batch_number = models.CharField(max_length=50, null=True, blank=True)

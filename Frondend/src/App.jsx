@@ -32,6 +32,7 @@ import StaffTasksView from "./features/events/StaffTasksView.jsx";
 import ManagerOrderReview from "./features/events/OrderDetailView.jsx";
 import NotificationPanel from "./features/events/NotificationPanel.jsx";
 import { NotificationProvider } from "./hooks/useTaskNotifications.jsx";
+import OrderReviewPage from "./features/events/OrderReviewPage.jsx";
 
 
 function App() {
@@ -70,6 +71,7 @@ function App() {
     <Route path="/admin/operations" element={<OperationsView/>}/>
     <Route path="/admin/reports" element={<ApprovalsView/>}/>
     <Route path="/admin/analytics" element={<AnalyticsView/>}/>
+    <Route path="/staff/order-review/:taskId" element={<OrderReviewPage/>}/>
     <Route path="/admin/alerts" element={<MonitoringView/>}/>
     <Route path="/admin/settings" element={<SystemLogsTable/>}/>
 

@@ -1,5 +1,5 @@
 from django.urls import include, path
-from .views import (NotificationMarkReadView, Productview,IssueReportCreateView,ManagerIssueListView,NotificationListView,ManagerEscalateIssueView,DepartmentStaffListView, VerificationViewSet)
+from .views import (NotificationMarkReadView, OrderShippingReviewDetailView, Productview,IssueReportCreateView,ManagerIssueListView,NotificationListView,ManagerEscalateIssueView,DepartmentStaffListView, VerificationViewSet)
 from rest_framework.routers import DefaultRouter
 
 router = DefaultRouter()
@@ -14,6 +14,7 @@ urlpatterns = [
     path('notifications/<int:pk>/', NotificationMarkReadView.as_view(),name='notification-read'),
     path('issue-reports/<int:pk>/escalate/',ManagerEscalateIssueView.as_view(),name='manager_report'),
     path('manager-department-assign/',DepartmentStaffListView.as_view(),name='dept-manger-view'),
+    path('order-custom-details/',OrderShippingReviewDetailView.as_view(),name='order-custom-details'),  
     path('', include(router.urls)),
 ]
 

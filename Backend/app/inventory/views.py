@@ -344,7 +344,102 @@ class ManagerIssueListView(generics.ListAPIView):
             department =self.request.user.department,
             is_reviewed_by_manager = False
         )
-    
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
+from django.shortcuts import get_object_or_404
+from django.db.models import Sum, F
+from app.tasks.models import OrderItem, OrderAssignment
+
+class OrderShippingReviewDetailView(APIView):
+   
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, order_number):
+        # 1. ഒരേ ഓർഡർ നമ്പറിലുള്ള എല്ലാ ഐറ്റങ്ങളും എടുക്കുന്നു
+        order_items = OrderItem.objects.filter(order_number=order_number).select_related('product', 'Customer')
+
+        if not order_items.exists():
+            return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        first_item = order_items.first()
+        customer = first_item.Customer
+
+        # 2. TAX & SUB TOTAL CALCULATION (ഡയനാമിക് ആയി കണക്കുകൂട്ടുന്നു)
+        subtotal = 0.0
+        line_items_data = []
+
+        for item in order_items:
+            # പ്രൊഡക്റ്റിന്റെ വില (നിങ്ങളുടെ പ്രൊഡക്റ്റ് മോഡലിൽ price ഫീൽഡ് ഉണ്ടെന്ന് കരുതുന്നു, ഇല്ലെങ്കിൽ 0 വരും)
+            price = float(getattr(item.product, 'price', 0.0))
+            item_total = item.quantity * price
+            subtotal += item_total
+
+            line_items_data.append({
+                "item_id": item.id,
+                "product_name": item.product.name,
+                "sku": item.product.sku,
+                "quantity": item.quantity,
+                "unit_price": price,
+                "line_total": item_total
+            })
+
+        tax_rate = 18.0 
+        tax_amount = (subtotal * tax_rate) / 100
+        shipping_charges = 50.0 
+        grand_total = subtotal + tax_amount + shipping_charges
+
+        # 3. PAYMENT & CREDIT TERMS CHECK (അസൈൻമെന്റ് സ്റ്റാറ്റസ് വെച്ച് കണ്ടെത്തുന്നു)
+        assignment = OrderAssignment.objects.filter(order=first_item).first()
+        
+        # ഡിഫോൾട്ട് പേയ്‌മെന്റ് സ്റ്റാറ്റസ്
+        payment_status = "CREDIT_HOLD"
+        credit_terms = "Net 30 Days Allowed"
+        is_clear_for_shipping = False
+
+        if assignment:
+            if assignment.verification_status == 'PASSED':
+                payment_status = "PAID"
+                credit_terms = "Immediate Dispatched"
+                is_clear_for_shipping = True
+            elif assignment.priority in ['HIGH', 'EMER']:
+                # കമ്പനിയുടെ വിശ്വസ്തരായ കസ്റ്റമർമാർക്ക് ക്രെഡിറ്റിൽ സാധനം അയക്കാൻ അനുവദിക്കുന്നു
+                payment_status = "APPROVED_ON_CREDIT"
+                credit_terms = "Commercial Account Credit"
+                is_clear_for_shipping = True
+
+        # 4. FINAL ERP PAYLOAD RESPONSE
+        response_data = {
+            "order_metadata": {
+                "order_number": order_number,
+                "status": first_item.get_status_display(),
+                "created_at": first_item.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            },
+            "customer_details": {
+                "name": customer.name if customer else "Unknown Customer",
+                "email": customer.email if customer else "N/A",
+                "phone": customer.phone if customer else "N/A",
+                "tax_number": customer.tax_number if customer and customer.tax_number else "N/A",
+                "shipping_address": first_item.order_assignments.first().shipping_address if assignment and assignment.shipping_address else (customer.shipping_address if customer else "No Address Provided")
+            },
+            "payment_and_credit_details": {
+                "payment_status": payment_status,
+                "credit_terms": credit_terms,
+                "is_clear_for_shipping": is_clear_for_shipping
+            },
+            "products_ordered": line_items_data,
+            "financial_breakdown": {
+                "subtotal": subtotal,
+                "tax_rate_applied": f"{tax_rate}%",
+                "tax_amount": tax_amount,
+                "shipping_charges": shipping_charges,
+                "grand_total": grand_total
+            }
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK)
     
 class NotificationListView(generics.ListAPIView):
     serializer_class = NotificationSerializer

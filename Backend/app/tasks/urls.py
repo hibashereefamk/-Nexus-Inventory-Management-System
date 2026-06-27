@@ -2,9 +2,9 @@ from django.urls import path
 
 
 from .views import (
-    AdminOrderListCreateView, AdminOrderConfirmView, AdminOrderUpdateView, AdminResolveIssueView, ManagerApproveOrderView,
+    AdminOrderListCreateView, AdminOrderConfirmView, AdminOrderUpdateView, AdminResolveIssueView, CustomerListCreateView, ManagerApproveOrderView,
     ManagerAssignmentListView, ManagerAssignStaffView, ManagerForceCycleCountView,
-    ManagerStaffFulfillmentView, ManagerDashboardStats,
+    ManagerStaffFulfillmentView, ManagerDashboardStats, OrderReviewView,
     StaffDashboardTasksView, StaffUpdateTaskStatusView,
     StaffTaskDetailView, StaffTaskInspectView, TaskStatsView,
     DepartmentListView, CategoryListView, productListView,AdmnOrderRejectView,StaffCreateIssueView,
@@ -34,7 +34,10 @@ urlpatterns = [
     path('manager/assignments/<int:pk>/quarantine-writeoff/', ManagerWriteOffQuarantineView.as_view(), name='manager-quarantine'),
     path('manager/assignments/<int:pk>/escalate-backorder/', ManagerEscalateToBackorderView.as_view(), name='manager-backorder'),
 
-    # --- STAFF ENDPOINTS ---
+   
+    path('customers/', CustomerListCreateView.as_view(), name='customer-list-create'),
+
+    path('staff/order-review/<int:task_id>/',OrderReviewView.as_view(),name='order-review-details'),
     path('staff/tasks/', StaffDashboardTasksView.as_view(), name='staff-tasks'),
     path('staff/tasks/<int:pk>/', StaffTaskDetailView.as_view(), name='staff-task-detail'),
     path('staff/update-task/<int:pk>/', StaffUpdateTaskStatusView.as_view(), name='staff-task-update'),
