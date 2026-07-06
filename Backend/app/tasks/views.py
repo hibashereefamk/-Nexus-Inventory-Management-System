@@ -40,56 +40,68 @@ from django.shortcuts import get_object_or_404
 from app.inventory.models import IssueReport
 from app.tasks.models import OrderItem, OrderAssignment,Customer
 
+
+
 class AdminResolveIssueView(APIView):
+    """
+    Final decision handler by Admin on an escalated IssueReport.
+    Locks operations inside database transactions and ensures stock corrections.
+    """
     permission_classes = [permissions.IsAdminUser]
 
     def post(self, request, report_id):
-        """
-        Final decision by Admin on an escalated IssueReport.
-        """
         report = get_object_or_404(IssueReport, id=report_id)
         decision = request.data.get("decision")  # 'CANCEL' or 'RETRY'
-        admin_note = request.data.get("note", "")
+        admin_note = request.data.get("note", "").strip()
 
-        if not decision:
-            return Response({"error": "Decision is required."}, status=400)
+        if decision not in ['CANCEL', 'RETRY']:
+            return Response({"error": "Valid decision ('CANCEL' or 'RETRY') is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         assignment = report.assignment
         order = assignment.order
 
-        if decision == 'CANCEL':
-            # 1. Update the Order status
-            order.status = 'CANCELLED'
-            order.rejection_reason = f"Admin Decision: {admin_note}"
-            order.save()
-            
-            # 2. Update the Assignment and Issue Report
-            assignment.is_cancelled = True
-            assignment.save()
-            
-            report.is_reviewed_by_manager = True # Admin review counts as final
-            report.is_escalated_to_admin = False
-            report.manager_remarks = admin_note
-            report.save()
+        with transaction.atomic():
+            if decision == 'CANCEL':
+                # 1. Update the Order status & safely release committed inventory space
+                order.status = 'CANCELLED'
+                order.rejection_reason = f"Admin Decision: {admin_note}"
+                
+                # Check if stock was committed before dropping the order footprint
+                if hasattr(order, 'cancel_reservation'):
+                    order.cancel_reservation()
+                order.save()
+                
+                # 2. Halt Assignment processes
+                assignment.is_cancelled = True
+                assignment.status = 'CANCELLED'
+                assignment.save()
+                
+                # 3. Resolve report tracking state
+                report.is_reviewed_by_manager = True 
+                report.is_escalated_to_admin = False
+                report.manager_remarks = admin_note
+                report.save()
 
-        elif decision == 'RETRY':
-            # Reset for another attempt (e.g., different staff or stock fixed)
-            order.status = 'PROCESSING'
-            order.save()
-            
-            assignment.issue_status = 'NONE'
-            assignment.verification_status = 'PENDING'
-            assignment.status = 'PENDING'
-            assignment.save()
-            
-            report.is_reviewed_by_manager = True
-            report.is_escalated_to_admin = False
-            report.save()
+            elif decision == 'RETRY':
+                # Re-route processing state back to warehouse pool
+                order.status = 'PROCESSING'
+                order.save()
+                
+                # Wipe issue validation indicators for floor staff retry execution
+                assignment.issue_status = 'NONE'
+                assignment.verification_status = 'PENDING'
+                assignment.status = 'PENDING'
+                assignment.save()
+                
+                report.is_reviewed_by_manager = True
+                report.is_escalated_to_admin = False
+                report.manager_remarks = f"Retry Authorized: {admin_note}"
+                report.save()
 
         return Response({
             "message": f"Issue resolved as {decision}",
             "order_status": order.status
-        }) 
+        }, status=status.HTTP_200_OK)
 
 class CustomerListCreateView(APIView):
    
@@ -108,34 +120,41 @@ class CustomerListCreateView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class AdminOrderListCreateView(APIView):
-    permission_classes = [IsAdminUser]
+    """
+    Fetch all items grouped by order number, or batch create multi-item orders.
+    """
+    permission_classes = [permissions.IsAdminUser]
 
     def get(self, request):
-        orders = OrderItem.objects.all().order_by('-id')
+        # Database optimization: fetch foreign relations up-front
+        orders = OrderItem.objects.select_related('customer', 'target_department', 'product').all().order_by('-id')
         grouped = defaultdict(list)
         for item in orders:
             grouped[item.order_number].append(item)
 
         response = []
         for order_number, items in grouped.items():
-            # കസ്റ്റമർ വിവരങ്ങൾ ഉണ്ടെങ്കിൽ ഫ്രണ്ട്-എൻഡിലേക്ക് അയക്കുന്നു
-            customer_obj = items[0].Customer
+            customer_obj = items[0].customer  # Lowercase fixed to map model field
+            
             response.append({
                 "order_number": order_number,
                 "status": items[0].status,
                 "target_department": items[0].target_department.name if items[0].target_department else None,
+                "created_at": items[0].created_at,
                 "customer_details": {
                     "name": customer_obj.name if customer_obj else "Walk-in Client",
-                    "shipping_address": customer_obj.shipping_address if customer_obj else "N/A"
+                    "shipping_address": customer_obj.shipping_address if customer_obj else "N/A",
+                    "email": customer_obj.email if customer_obj else "N/A"
                 },
                 "products": [
                     {
+                        "id": item.id,
                         "name": item.product.name,
                         "quantity": item.quantity,
                     } for item in items
                 ]
             })
-        return Response(response)
+        return Response(response, status=status.HTTP_200_OK)
 
     def post(self, request):
         customer_id = request.data.get('customer') 
@@ -144,14 +163,12 @@ class AdminOrderListCreateView(APIView):
         target_department = request.data.get('target_department')
 
         if not items:
-            return Response({"error": "Items required"}, status=400)
+            return Response({"error": "Items required"}, status=status.HTTP_400_BAD_REQUEST)
 
         with transaction.atomic():
             customer_obj = None
             if customer_id:
                 customer_obj = get_object_or_404(Customer, id=customer_id)
-            
-           
             elif customer_data:
                 customer_obj = Customer.objects.create(
                     name=customer_data.get('name'),
@@ -161,15 +178,14 @@ class AdminOrderListCreateView(APIView):
                     tax_number=customer_data.get('tax_number')
                 )
             else:
-                return Response({"error": "Customer ID or New Customer Data is required"}, status=400)
+                return Response({"error": "Customer ID or New Customer Data is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-            
             order_number = f"ORD-{uuid.uuid4().hex[:8].upper()}"  
             created_items = []
 
             for item in items:
                 data = {
-                    "Customer": customer_obj.id,  
+                    "customer": customer_obj.id,  # Lowercase fixed
                     "product": item.get("product"),
                     "quantity": item.get("quantity"),
                     "target_department": target_department,
@@ -181,38 +197,82 @@ class AdminOrderListCreateView(APIView):
                     serializer.save()
                     created_items.append(serializer.data)
                 else:
-                    return Response(serializer.errors, status=400)
+                    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({
             "message": "Order and Customer managed successfully",
             "order_number": order_number,
             "items": created_items
-        }, status=201)
-    
+        }, status=status.HTTP_201_CREATED)
 
+class AdminOrderOperationView(APIView):
+    """
+    Combined patch panel endpoint for quick action manipulations.
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    def patch(self, request, order_number):
+        action = request.data.get('action') 
+        order_items = OrderItem.objects.filter(order_number=order_number)
+
+        if not order_items.exists():
+            return Response({"error": "Order string reference not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        with transaction.atomic():
+            if action == 'CONFIRM':
+                for item in order_items:
+                    if item.status == 'DRAFT':
+                        item.status = 'CONFIRMED'
+                        item.reserve_stock()
+                        item.save()
+                return Response({"message": f"Order {order_number} confirmed & stock reserved successfully."}, status=status.HTTP_200_OK)
+
+            elif action == 'REJECT':
+                reason = request.data.get('rejection_reason', 'No explicit reason provided by admin.')
+                for item in order_items:
+                    if item.status in ['CONFIRMED', 'PROCESSING']:
+                        item.cancel_reservation()
+                    item.status = 'CANCELLED'
+                    item.rejection_reason = reason
+                    item.save()
+                return Response({"message": f"Order {order_number} has been rejected/cancelled."}, status=status.HTTP_200_OK)
+
+            elif action == 'EDIT':
+                updated_products = request.data.get('products', [])
+                for p_data in updated_products:
+                    item_id = p_data.get('id')
+                    new_qty = p_data.get('quantity')
+                    
+                    if item_id and new_qty:
+                        line_item = get_object_or_404(OrderItem, id=item_id, order_number=order_number)
+                        line_item.quantity = int(new_qty)
+                        line_item.save()
+                return Response({"message": f"Order {order_number} modifications saved successfully."}, status=status.HTTP_200_OK)
+
+            return Response({"error": "Invalid action parameter specified."}, status=status.HTTP_400_BAD_REQUEST)
 class OrderReviewView(APIView):
-    permission_classes = [IsAuthenticated]
+    """
+    Staff review tracking endpoint to capture order details mapped to assignments.
+    """
+    permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, task_id):
         try:
-            # 1. Find the assignment
-            assignment = OrderAssignment.objects.get(id=task_id)
-            
-            # 2. Grab the specific order item linked to it
-            # (Assuming your assignment model has an 'order_item' field)
+            # task_id IS the OrderAssignment ID
+            assignment = OrderAssignment.objects.select_related('order__customer', 'order__product').get(id=task_id)
             order_item = assignment.order
             
-            # 3. Use the correct serializer
             serializer = OrderItemSerializer(order_item)
             
-            print(serializer.data)  # This will now print the tax and customer details!
-            return Response(serializer.data)
+            # ✅ Inject the assignment_id directly into the response data dictionary
+            response_data = serializer.data
+            response_data['assignment_id'] = task_id  # This keeps your update view clean!
             
+            return Response(response_data, status=status.HTTP_200_OK)
         except OrderAssignment.DoesNotExist:
-            return Response({"detail": "Task assignment not found"}, status=404)
-
-
-
+            return Response({"detail": "Task assignment not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        
 class productListView(generics.ListAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductDetailSerializer
@@ -226,116 +286,110 @@ class DepartmentListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]  
 
 class AdminOrderUpdateView(APIView):
-    permission_classes = [IsAdminUser]
+    """
+    Handles granular payload changes on unconfirmed Draft state orders.
+    """
+    permission_classes = [permissions.IsAdminUser]
 
     def put(self, request, order_number):
         items_data = request.data.get("items", [])
-
         orders = OrderItem.objects.filter(order_number=order_number)
 
         if not orders.exists():
-            return Response({"error": "Order not found"}, status=404)
+            return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        # ❌ block editing confirmed/shipped orders
-        if orders.first().status in ["CONFIRMED", "SHIPPED"]:
-            return Response(
-                {"error": "Cannot edit confirmed or shipped orders"},
-                status=400
-            )
+        if orders.first().status in ["CONFIRMED", "PROCESSING", "SHIPPED"]:
+            return Response({"error": f"Cannot edit orders when status is {orders.first().status}"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # update logic
-        for item_data in items_data:
-            item_id = item_data.get("id")
-            quantity = item_data.get("quantity")
+        with transaction.atomic():
+            for item_data in items_data:
+                item_id = item_data.get("id")
+                quantity = item_data.get("quantity")
 
-            try:
-                item = OrderItem.objects.get(id=item_id, order_number=order_number)
-                item.quantity = quantity
-                item.save()
+                try:
+                    item = OrderItem.objects.get(id=item_id, order_number=order_number)
+                    item.quantity = int(quantity)
+                    item.save()
+                except OrderItem.DoesNotExist:
+                    return Response({"error": f"Line item ID {item_id} not found"}, status=status.HTTP_44_NOT_FOUND)
 
-            except OrderItem.DoesNotExist:
-                return Response({"error": "Item not found"}, status=404)
-
-        return Response({"message": "Order updated successfully"}) 
+        return Response({"message": "Order updated successfully"}, status=status.HTTP_200_OK)
 
 class AdmnOrderRejectView(APIView):
-    permission_classes = [IsAdminUser]
+    """
+    Rejects processing vectors and reverts stock ledger requirements.
+    """
+    permission_classes = [permissions.IsAdminUser]
 
     def post(self, request, order_number):
-        """
-        POST /api/admin-orders/<order_number>/reject/
-        Handles rejection for both DRAFT and CONFIRMED orders.
-        """
-        # Fetch all items associated with this order number
         orders = OrderItem.objects.filter(order_number=order_number)
 
         if not orders.exists():
             return Response({"error": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Optional: Prevent rejecting orders that are already SHIPPED
         first_item = orders.first()
         if first_item.status in ['SHIPPED', 'CANCELLED']:
-            return Response({
-                "error": f"Cannot reject an order that is already {first_item.status}."
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": f"Cannot reject an order that is already {first_item.status}."}, status=status.HTTP_400_BAD_REQUEST)
 
         rejection_reason = request.data.get("rejection_reason", "").strip()
         if not rejection_reason:
             return Response({"error": "Rejection reason is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # We must loop to ensure stock is released for CONFIRMED items
-        for item in orders:
-            # If the admin confirms an order, stock gets 'committed'.
-            # If they later reject it, we must give that stock back.
-            if item.status == 'CONFIRMED' or item.status == 'PROCESSING':
-                item.cancel_reservation() 
-            
-            # Update status and reason
-            item.status = 'CANCELLED'
-            item.rejection_reason = rejection_reason
-            item.save()
+        with transaction.atomic():
+            for item in orders:
+                if item.status in ['CONFIRMED', 'PROCESSING']:
+                    item.cancel_reservation() 
+                
+                item.status = 'CANCELLED'
+                item.rejection_reason = rejection_reason
+                item.save()
 
         return Response({
             "message": f"Order {order_number} has been rejected and stock reservations released.",
             "status": "CANCELLED"
         }, status=status.HTTP_200_OK)
-    
+
 class AdminOrderConfirmView(APIView):
-    permission_classes = [IsAdminUser]
+    """
+    Runs availability inventory safety checks across multi-item requests, reserves rows,
+    and forwards a combined tracking assignment ticket to fulfillment floor groups.
+    """
+    permission_classes = [permissions.IsAdminUser]
 
     def post(self, request, order_number):
-        orders = OrderItem.objects.filter(order_number=order_number)
+        orders = OrderItem.objects.select_related('product', 'target_department').filter(order_number=order_number)
         if not orders.exists():
-            return Response({"error": "Order not found"}, status=404)
+            return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        # 1. Check stock for ALL items in the order first
+        if orders.first().status in ['CONFIRMED', 'PROCESSING', 'SHIPPED']:
+            return Response({"error": "Order is already confirmed or active"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 1. Atomic Availability Check
         for item in orders:
             if item.product.available_stock < item.quantity:
                 return Response({
                     "error": f"Insufficient stock for {item.product.name}. Available: {item.product.available_stock}"
-                }, status=400)
+                }, status=status.HTTP_400_BAD_REQUEST)
 
-        # 2. If all items have stock, reserve them
-        from django.db import transaction
+        # 2. State transition batch saving
         with transaction.atomic():
             for item in orders:
-                # Reserve the stock (Committed Stock logic)
                 item.reserve_stock()
-            
-            # Update status in bulk to avoid choice validation errors during the "Confirm" phase
-            orders.update(status='CONFIRMED')
+                item.status = 'CONFIRMED'
+                item.save()
 
-        # 3. Create the assignment for the warehouse
-        first_order = orders.first()
-        OrderAssignment.objects.create(
-            order=first_order,
-            manager=request.user,
-            department=first_order.target_department,
-            status='PENDING'
-        )
+            # 3. Floor Group Assignment Generation
+            first_order = orders.first()
+            OrderAssignment.objects.get_or_create(
+                order=first_order,
+                defaults={
+                    "manager": request.user,
+                    "department": first_order.target_department,
+                    "status": 'PENDING'
+                }
+            )
 
-        return Response({"message": f"{order_number} confirmed and stock reserved."})
-    
+        return Response({"message": f"{order_number} confirmed and stock reserved."}, status=status.HTTP_200_OK)
 
 class ManagerReworkAssignmentView(APIView):
     """
@@ -782,6 +836,7 @@ class StaffUpdateTaskStatusView(generics.UpdateAPIView):
             assignment.save()
 
         assignment.order.update_status_from_assignments()
+        
 class StaffTaskDetailView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsStaffFromDepartment]
 

@@ -184,10 +184,7 @@ class OrderAssignmentSerializer(serializers.ModelSerializer):
             "approval_status",
         ]
 
-
-# ==========================================================
-# ASSIGN ORDER TO STAFF
-# ==========================================================
+ 
 
 class AssignOrderSerializer(serializers.ModelSerializer):
 
@@ -231,32 +228,37 @@ class AssignOrderSerializer(serializers.ModelSerializer):
         return data
 
 
+class CustomerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Customer
+        fields = ['id', 'name', 'email', 'phone', 'shipping_address', 'tax_number']
+
 class OrderItemSerializer(serializers.ModelSerializer):
+    customer = serializers.PrimaryKeyRelatedField(queryset=Customer.objects.all(), write_only=True, required=False, allow_null=True)
     product_details = ProductDetailSerializer(source='product', read_only=True)
-    
-    
-    customer_details = serializers.SerializerMethodField()
+    customer_details = CustomerSerializer(source='customer', read_only=True)
     tax_calculation = serializers.SerializerMethodField()
     payment_credit_details = serializers.SerializerMethodField()
 
     class Meta:
         model = OrderItem
         fields = [
-            'id', 'order_number', 'product', 'product_details', 'quantity', 
+            'id', 'order_number', 'product', 'product_details', 'quantity','customer', 'customer_details', 
             'status', 'target_department', 'rejection_reason', 'created_at', 'updated_at',
-            'customer_details', 'tax_calculation', 'payment_credit_details' 
+             'tax_calculation', 'payment_credit_details' 
         ]
 
     def get_customer_details(self, obj):
         if obj.customer:
             return {
                 "name": obj.customer.name,
-                "email": obj.Customer.email,
-                "phone": obj.Customer.phone,
-                "shipping_address": obj.Customer.shipping_address,
-                "tax_number": obj.Customer.tax_number or "N/A"
+                "email": obj.customer.email,          
+                "phone": obj.customer.phone,          
+                "shipping_address": obj.customer.shipping_address, 
+                "tax_number": obj.customer.tax_number or "N/A"     
             }
         return None
+        
 
     def get_tax_calculation(self, obj):
         product_price = getattr(obj.product, 'price', Decimal("0.00")) 
@@ -288,10 +290,6 @@ class OrderItemSerializer(serializers.ModelSerializer):
             "credit_terms": c_terms,
             "is_clear_for_shipping": p_status == "PAID"
         }
-class CustomerSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Customer
-        fields = ['id', 'name', 'email', 'phone', 'shipping_address', 'tax_number']
 class ManagerDashboardSerializer(serializers.ModelSerializer):
 
     order_details = OrderItemSerializer(

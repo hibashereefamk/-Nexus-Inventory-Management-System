@@ -32,6 +32,7 @@ class OrderItem(models.Model):
     order_number = models.CharField(max_length=50, blank=True)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(default=1)
+    Shipping_date = models.DateField(auto_now=True,null =True, blank=True)
 
     status = models.CharField(max_length=20, choices=ORDER_STATUS, default='DRAFT')
 

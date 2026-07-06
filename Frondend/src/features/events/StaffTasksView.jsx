@@ -3,7 +3,6 @@ import React, { useEffect, useState, useCallback } from 'react'
 import axios from 'axios'
 import { useNavigate } from "react-router-dom";
 
-
 import {
   FiPackage,
   FiClock,
@@ -57,7 +56,6 @@ const StaffTaskTerminal = () => {
     fetchData()
   }, [fetchData])
 
-  // FIXED: Syncing query parameters and search payload arrays with handleOpenVerification logic
   const refreshInspectionList = async taskId => {
     try {
       const res = await axios.get(
@@ -71,7 +69,6 @@ const StaffTaskTerminal = () => {
         products.map(async p => {
           const productId = p.product_id || p.product
 
-          // Fetch matching history natively
           const historyRes = await axios.get(
             `${API}/api/inventory/verify-products/history/${productId}/`,
             getAuthHeaders()
@@ -211,17 +208,19 @@ const StaffTaskTerminal = () => {
     }
   }
 
-  const updateStatus = async (taskId, status) => {
+  // ✅ HANDLES STATUS MUTATION TO 'SHIPPED' ACCORDING TO StaffUpdateTaskStatusView CRITERIA
+  const updateStatus = async (assignmentId, status) => {
     try {
       await axios.patch(
-        `${API}/api/orders/staff/update-task/${taskId}/`,
-        { status },
+        `${API}/api/orders/staff/update-task/${assignmentId}/`,
+        { status }, 
         getAuthHeaders()
       )
       toast.success(`Task updated to ${status}`)
       fetchData()
     } catch (err) {
-      toast.error(err?.response?.data?.detail || 'Failed to update task')
+      const errMsg = err?.response?.data?.detail || err?.response?.data?.[0] || 'Failed to update task status.'
+      toast.error(errMsg)
     }
   }
 
@@ -229,13 +228,12 @@ const StaffTaskTerminal = () => {
     inspectionItems.length > 0 &&
     inspectionItems.every(item => item.is_inspected)
 
-  // View 1: Order Manifest details view (Product Items Table Layout)
+  // View 1: Order Manifest details view
   if (isSelectingProduct && activeVerificationTask) {
     const task = activeVerificationTask
     return (
       <div className='min-h-screen bg-slate-50 p-4 md:p-8 font-sans'>
         <Toaster position='top-right' />
-        {/* Navigation Header */}
         <div className='max-w-6xl mx-auto mb-6 flex justify-between items-center'>
           <button
             onClick={() => {
@@ -252,7 +250,6 @@ const StaffTaskTerminal = () => {
         </div>
 
         <div className='max-w-6xl mx-auto space-y-6'>
-          {/* Order Summary Card */}
           <div className='bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden'>
             <div className='p-6 border-b border-slate-100 bg-slate-50/50'>
               <h2 className='text-xl font-black text-slate-900'>
@@ -281,7 +278,6 @@ const StaffTaskTerminal = () => {
             </div>
           </div>
 
-          {/* Order Items Table */}
           <div className='bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden'>
             <table className='w-full text-left border-collapse'>
               <thead>
@@ -386,7 +382,6 @@ const StaffTaskTerminal = () => {
                         </td>
                       </tr>
 
-                      {/* Expanded Report Panel Details */}
                       {hasLogRecord && (
                         <tr>
                           <td colSpan='5' className='p-0'>
@@ -516,15 +511,15 @@ const StaffTaskTerminal = () => {
           </div>
         </div>
         <div className='flex gap-4 items-center'>
-        <input
-          type='text'
-          placeholder='Search Order...'
-          className='px-4 py-2 rounded-lg border text-sm w-64'
-          value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
-        />
+          <input
+            type='text'
+            placeholder='Search Order...'
+            className='px-4 py-2 rounded-lg border text-sm w-64'
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+          />
+        </div>
       </div>
-    </div>
 
       <div className='grid grid-cols-1 md:grid-cols-3 gap-6 mb-8'>
         <StatCard icon={<FiClock />} color='text-yellow-600 bg-yellow-50' label='Pending' value={stats.pending} />
@@ -546,7 +541,8 @@ const StaffTaskTerminal = () => {
           </thead>
           <tbody>
             {(filteredTasks || []).map(task => (
-              <tr key={task.id} className='border-b hover:bg-slate-50 transition'>
+              <tr key={task.id} className='border-b hover:bg-slate-50 transition'
+  onClick={() => navigate(`/staff/order-review/${task.id}`)}>
                 <td className='p-4'>
                   <p className='font-mono font-bold text-blue-700'>#{task.order_number}</p>
                   <p className='text-xs text-slate-400'>
@@ -587,24 +583,25 @@ const StaffTaskTerminal = () => {
                   <div className='flex justify-end gap-2 flex-wrap'>
                     {task.verification_status === 'FAILED' && (
                       <button
-                        onClick={() => handleOpenVerification(task)}
-                        className='px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-[11px] font-black uppercase tracking-wide rounded-xl shadow-sm transition-all duration-200'
+                        onClick={(e) => {e.stopPropagation(); handleOpenVerification(task)}}
+                        className='px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-[11px] font-black uppercase tracking-wide rounded-xl shadow-sm'
                       >
                         Resolve QC Failure
                       </button>
                     )}
                     {task.status === 'PENDING' && (
                       <button
-                        onClick={() => updateStatus(task.id, 'PACKING')}
-                        className='px-4 py-2 bg-slate-900 hover:bg-black text-white text-[11px] font-black uppercase tracking-wide rounded-xl shadow-sm transition-all duration-200'
+                        onClick={(e) =>{e.stopPropagation(); updateStatus(task.id, 'PACKING')}}
+                        className='px-4 py-2 bg-slate-900 hover:bg-black text-white text-[11px] font-black uppercase tracking-wide rounded-xl shadow-sm'
                       >
                         Start Fulfillment
                       </button>
                     )}
                     {task.status === 'PACKING' && task.verification_status !== 'FAILED' && (
                       <button
-                        onClick={() => handleOpenVerification(task)}
-                        className='px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-black uppercase tracking-wide rounded-xl shadow-sm transition-all duration-200'
+                      
+                        onClick={(e) => {e.stopPropagation(); handleOpenVerification(task)}}
+                        className='px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-black uppercase tracking-wide rounded-xl shadow-sm'
                       >
                         Run QC Check
                       </button>
@@ -614,32 +611,21 @@ const StaffTaskTerminal = () => {
                         Awaiting Manager Approval
                       </span>
                     )}
+                    
+                    {/* ✅ ROUTING BUTTON TRIPPED BY EXACT ORDERASSIGNMENT PRIMARY KEY */}
                     {task.status === 'PACKED' && task.approval_status === 'APPROVED' && (
                       <button
-                        onClick={() => updateStatus(task.id, 'SHIPPED')}
-                        className='px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black uppercase tracking-wide rounded-xl shadow-lg transition-all duration-200'
+                        className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-black uppercase tracking-wide rounded-xl shadow-lg transition duration-200"
                       >
-                        Dispatch Shipment
+                        Review Order
                       </button>
                     )}
+
                     {task.status === 'PACKED' && task.approval_status === 'REJECTED' && (
                       <span className='px-4 py-2 bg-red-50 text-red-700 border border-red-200 text-[10px] font-black uppercase tracking-widest rounded-full'>
                         Rejected By Manager
                       </span>
                     )}
-                    {
-  task.status === "PACKED" &&
-  task.approval_status === "APPROVED" && (
-    <button
-      onClick={() =>
-        navigate(`/staff/order-review/${task.id}`)
-      }
-      className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
-    >
-      Review Order
-    </button>
-  )
-}
                   </div>
                 </td>
               </tr>
