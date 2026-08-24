@@ -4,7 +4,6 @@ from django.contrib.auth import get_user_model
 from django.db.models import F
 from django.core.mail import send_mail
 from django.conf import settings
-from celery import shared_task
 
 from .models import Product, Notification
 from app.tasks.models import OrderAssignment
@@ -84,27 +83,31 @@ def process_overdue_tasks():
     Automatically marks pending tasks as OVERDUE and alerts managers.
     """
     today = timezone.now().date()
-    overdue_orders = OrderAssignment.objects.filter(
+    overdue_orders = OrderAssignment.objects.select_related('order', 'staff', 'department').filter(
         deadline_date__lt=today,
         status__in=['PENDING', 'PACKING']
     )
 
-    for order in overdue_orders:
-        order.status = 'OVERDUE'
-        order.save()
+    for assignment in overdue_orders:
+        assignment.status = 'OVERDUE'
+        assignment.save()
 
-        msg = f"TASK OVERDUE: Order {order.order_number} assigned to {order.staff.username} missed the deadline."
+        # 🛠️ OrderItem ഉണ്ടെങ്കിൽ അതിലെ order_number എടുക്കുക, ഇല്ലെങ്കിൽ assignment.id നൽകുക
+        order_num = assignment.order.order_number if assignment.order and assignment.order.order_number else assignment.id
+        
+        # staff ഉണ്ടോ എന്ന് ഉറപ്പുവരുത്തുക
+        staff_name = assignment.staff.username if assignment.staff else "Unassigned"
+
+        msg = f"TASK OVERDUE: Order #{order_num} assigned to {staff_name} missed the deadline."
         
         Notification.objects.create(
             title="Deadline Missed",
             message=msg,
-            department=order.department
+            department=assignment.department
         )
 
-        # Notify Manager in real-time
+        # Real-time notification
         broadcast_notification("inventory_alerts", {"type": "TASK_OVERDUE", "msg": msg})
-
-# ✅ Helper: Email Logic
 def send_manager_email(subject, message, department):
     """
     Sends an email report to all managers in a specific department.

@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'app.reports.apps.ReportsConfig',
     'app.requests.apps.RequestsConfig',
     'app.shipments.apps.ShipmentsConfig',
+    'app.Chat.apps.ChatConfig',
     'app.inventory.apps.InventoryConfig',
     'app.tasks.apps.TasksConfig',
     'channels',
