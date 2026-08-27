@@ -34,6 +34,8 @@ import NotificationPanel from "./features/events/NotificationPanel.jsx";
 import { NotificationProvider } from "./hooks/useTaskNotifications.jsx";
 import OrderReviewPage from "./features/events/OrderReviewPage.jsx";
 import TeamChat from "./features/events/TeamChat.jsx";
+import { ChatProvider } from "./context/ChatContext.jsx";
+import ChatPage from "./features/events/ChatPage.jsx";
 
 
 function App() {
@@ -55,7 +57,14 @@ function App() {
     <Route path="/tasks/show" element={<StaffTasksView />} />
     <Route path="/inventory/lookup" element={<StockLookup />} />
     <Route path="/inventory/history" element={<ProcurementHistory />} />
-    <Route path="/chat" element={<TeamChat />} />
+    <Route
+    path="/chat"
+    element={
+        <ChatProvider>
+            <ChatPage />
+        </ChatProvider>
+    }
+/>
     <Route path="/requests" element={<SupplyRequest />} />
     <Route path="/inventory/alerts" element={<InventoryAlertPage />} />
     <Route path="/inventory" element={<ProductList />}/>

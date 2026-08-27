@@ -1,216 +1,158 @@
 import json
 
+from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
-from channels.generic.websocket import AsyncWebsocketConsumer
 
 from .models import Conversation, ConversationMember, Message
 
 
-class ChatConsumer(AsyncWebsocketConsumer):
+class ChatConsumer(AsyncJsonWebsocketConsumer):
 
     async def connect(self):
 
-        # Logged-in user
         self.user = self.scope["user"]
 
-        # Conversation ID from URL
+        if not self.user.is_authenticated:
+            await self.close()
+            return
+
         self.conversation_id = self.scope["url_route"]["kwargs"][
             "conversation_id"
         ]
 
-        # Group name
-        self.room_group_name = f"chat_{self.conversation_id}"
+        self.room_group_name = (
+            f"chat_{self.conversation_id}"
+        )
 
-        # --------------------------------
-        # 1. Check authentication
-        # --------------------------------
-
-        if self.user.is_anonymous:
-            await self.close(code=4001)
-            return
-
-        # --------------------------------
-        # 2. Check conversation membership
-        # --------------------------------
-
+        # Check membership
         is_member = await self.check_membership()
 
         if not is_member:
-            await self.close(code=4003)
+            await self.close()
             return
-
-        # --------------------------------
-        # 3. Join Redis channel group
-        # --------------------------------
 
         await self.channel_layer.group_add(
             self.room_group_name,
             self.channel_name
         )
 
-        # --------------------------------
-        # 4. Accept WebSocket
-        # --------------------------------
-
         await self.accept()
-
-        print(
-            f"Chat connected | "
-            f"User: {self.user.username} | "
-            f"Conversation: {self.conversation_id}"
-        )
-
 
     async def disconnect(self, close_code):
 
-        if hasattr(self, "room_group_name"):
-
-            await self.channel_layer.group_discard(
-                self.room_group_name,
-                self.channel_name
-            )
-
-        print(
-            f"Chat disconnected | "
-            f"User: {getattr(self.user, 'username', 'Unknown')}"
+        await self.channel_layer.group_discard(
+            self.room_group_name,
+            self.channel_name
         )
 
+    async def receive_json(self, content, **kwargs):
 
-    async def receive(self, text_data):
+        message_text = content.get("message")
 
-        try:
+        if not message_text:
+            return
 
-            data = json.loads(text_data)
+        message = await self.create_message(
+            message_text
+        )
 
-            message_text = data.get("message", "").strip()
+        await self.channel_layer.group_send(
 
-            # -----------------------------
-            # Validate message
-            # -----------------------------
+            self.room_group_name,
 
-            if not message_text:
-                await self.send_error(
-                    "Message cannot be empty."
-                )
-                return
+            {
+                "type": "chat_message",
 
-            if len(message_text) > 5000:
-                await self.send_error(
-                    "Message is too long."
-                )
-                return
+                "message_id": message["id"],
 
-            # -----------------------------
-            # Save message
-            # -----------------------------
+                "conversation_id":
+                    message["conversation_id"],
 
-            message = await self.create_message(
-                message_text
-            )
+                "sender_id":
+                    message["sender_id"],
 
-            # -----------------------------
-            # Send to conversation group
-            # -----------------------------
+                "sender_name":
+                    message["sender_name"],
 
-            await self.channel_layer.group_send(
+                "message":
+                    message["content"],
 
-                self.room_group_name,
+                "message_type":
+                    message["message_type"],
 
-                {
-                    "type": "chat_message",
-
-                    "message_id": message.id,
-
-                    "message": message.content,
-
-                    "sender_id": self.user.id,
-
-                    "sender_name": self.user.username,
-
-                    "created_at": message.created_at.isoformat(),
-                }
-            )
-
-        except json.JSONDecodeError:
-
-            await self.send_error(
-                "Invalid message format."
-            )
-
-        except Exception as e:
-
-            print("Chat error:", e)
-
-            await self.send_error(
-                "Something went wrong."
-            )
-
+                "created_at":
+                    message["created_at"],
+            }
+        )
 
     async def chat_message(self, event):
 
-        await self.send(
+        await self.send_json({
 
-            text_data=json.dumps({
+            "type": "message",
 
-                "type": "chat_message",
+            "id":
+                event["message_id"],
 
-                "message_id": event["message_id"],
+            "conversation":
+                event["conversation_id"],
 
-                "message": event["message"],
+            "sender":
+                event["sender_id"],
 
-                "sender_id": event["sender_id"],
+            "sender_name":
+                event["sender_name"],
 
-                "sender_name": event["sender_name"],
+            "message_type":
+                event["message_type"],
 
-                "created_at": event["created_at"],
+            "content":
+                event["message"],
 
-            })
-
-        )
-
-
-    async def send_error(self, message):
-
-        await self.send(
-
-            text_data=json.dumps({
-
-                "type": "error",
-
-                "message": message,
-
-            })
-
-        )
-
+            "created_at":
+                event["created_at"],
+        })
 
     @database_sync_to_async
     def check_membership(self):
 
         return ConversationMember.objects.filter(
-
             conversation_id=self.conversation_id,
-
             user=self.user
-
         ).exists()
 
-
     @database_sync_to_async
-    def create_message(self, message_text):
+    def create_message(self, content):
 
-        conversation = Conversation.objects.get(
-            id=self.conversation_id
-        )
+        message = Message.objects.create(
 
-        return Message.objects.create(
-
-            conversation=conversation,
+            conversation_id=self.conversation_id,
 
             sender=self.user,
 
             message_type="TEXT",
 
-            content=message_text,
-
+            content=content
         )
+
+        return {
+            "id": message.id,
+
+            "conversation_id":
+                message.conversation_id,
+
+            "sender_id":
+                message.sender_id,
+
+            "sender_name":
+                message.sender.username,
+
+            "content":
+                message.content,
+
+            "message_type":
+                message.message_type,
+
+            "created_at":
+                message.created_at.isoformat(),
+        }

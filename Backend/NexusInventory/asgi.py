@@ -1,11 +1,4 @@
-"""
-ASGI config for NexusInventory project.
-
-It exposes the ASGI callable as a module-level variable named ``application``.
-"""
-
 import os
-
 import django
 
 from channels.routing import ProtocolTypeRouter, URLRouter
@@ -28,7 +21,6 @@ os.environ.setdefault(
 )
 
 django.setup()
-
 
 django_asgi_app = get_asgi_application()
 

@@ -1,10 +1,11 @@
 import React, { useEffect, useRef } from "react";
 import "./chat.css";
 
-import { useChat } from "../context/ChatContext";
+import { useChat } from "../../context/ChatContext";
 
 import MessageInput from "./MessageInput";
-
+const currentUserId =
+    Number(localStorage.getItem("user_id"));
 
 const ChatWindow = () => {
 
@@ -17,6 +18,28 @@ const ChatWindow = () => {
 
 
     const messagesEndRef = useRef(null);
+
+
+    const getConversationName = (conversation) => {
+
+        if (
+            conversation.conversation_type === "DIRECT"
+        ) {
+
+            return (
+                conversation.other_user?.username ||
+                conversation.other_user?.email ||
+                "Direct Chat"
+            );
+
+        }
+
+        return (
+            conversation.name ||
+            "Group Chat"
+        );
+
+    };
 
 
     useEffect(() => {
@@ -47,10 +70,16 @@ const ChatWindow = () => {
 
             </div>
         );
+
     }
 
 
+    const conversationName =
+        getConversationName(activeConversation);
+
+
     return (
+
         <div className="chat-window">
 
             {/* HEADER */}
@@ -60,18 +89,21 @@ const ChatWindow = () => {
                 <div className="chat-user">
 
                     <div className="avatar large">
-                        {activeConversation.name
+
+                        {conversationName
                             .charAt(0)
                             .toUpperCase()
                         }
+
                     </div>
 
 
                     <div>
 
                         <h3>
-                            {activeConversation.name}
+                            {conversationName}
                         </h3>
+
 
                         <span
                             className={
@@ -80,10 +112,12 @@ const ChatWindow = () => {
                                     : "status offline"
                             }
                         >
+
                             {isConnected
                                 ? "Online"
                                 : "Connecting..."
                             }
+
                         </span>
 
                     </div>
@@ -125,33 +159,59 @@ const ChatWindow = () => {
 
             <div className="messages-container">
 
-                {messages.map((message) => (
+                {messages.map((message) => {
 
-                    <div
-                        key={message.message_id}
-                        className="message-row"
-                    >
+    const isSent =
+        Number(message.sender) === currentUserId;
 
-                        <div className="message-bubble">
 
-                            <p>
-                                {message.message}
-                            </p>
+    return (
 
-                            <span>
-                                {new Date(
-                                    message.created_at
-                                ).toLocaleTimeString([], {
-                                    hour: "2-digit",
-                                    minute: "2-digit"
-                                })}
-                            </span>
+        <div
+            key={message.id}
+            className={
+                isSent
+                    ? "message-row sent"
+                    : "message-row received"
+            }
+        >
 
-                        </div>
+            <div className="message-bubble">
 
+                {!isSent && (
+                    <div className="message-sender">
+                        {message.sender_name}
                     </div>
+                )}
 
-                ))}
+                <p>
+                    {message.content}
+                </p>
+
+                <span className="message-time">
+
+                    {message.created_at &&
+                        new Date(
+                            message.created_at
+                        ).toLocaleTimeString(
+                            [],
+                            {
+                                hour: "2-digit",
+                                minute: "2-digit"
+                            }
+                        )
+                    }
+
+                </span>
+
+            </div>
+
+        </div>
+
+    );
+
+})}
+
 
                 <div ref={messagesEndRef} />
 
@@ -163,7 +223,9 @@ const ChatWindow = () => {
             <MessageInput />
 
         </div>
+
     );
+
 };
 
 

@@ -21,6 +21,7 @@ function Login() {
     localStorage.setItem("access_token", data.access);
     localStorage.setItem('refresh_token', data.refresh);
     localStorage.setItem('role', data.role);
+    localStorage.setItem('user_id', data.user_id);
     if (data.role_display) {
         localStorage.setItem('role_display', data.role_display);
     }

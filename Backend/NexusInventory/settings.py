@@ -35,6 +35,8 @@ ALLOWED_HOSTS = []
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
+    
+    'daphne',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
@@ -42,6 +44,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
+    'channels',
     'corsheaders',
     'app.accounts.apps.AccountsConfig',
     'app.reports.apps.ReportsConfig',
@@ -50,8 +53,13 @@ INSTALLED_APPS = [
     'app.Chat.apps.ChatConfig',
     'app.inventory.apps.InventoryConfig',
     'app.tasks.apps.TasksConfig',
-    'channels',
+    
 ]
+
+
+
+ASGI_APPLICATION = 'NexusInventory.asgi.application'
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication', # If using JWT
@@ -165,8 +173,6 @@ TEMPLATES = [
 WSGI_APPLICATION = 'NexusInventory.wsgi.application'
 
 
-
-ASGI_APPLICATION = 'NexusInventory.asgi.application'
 
 CHANNEL_LAYERS = {
     'default': {

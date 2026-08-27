@@ -1,8 +1,6 @@
-import React, {
-    useState
-} from "react";
+import { useState } from "react";
 
-import { useChat } from "../context/ChatContext";
+import { useChat } from "../../context/ChatContext";
 
 
 const MessageInput = () => {

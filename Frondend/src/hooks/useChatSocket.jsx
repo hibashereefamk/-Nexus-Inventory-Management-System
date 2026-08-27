@@ -10,7 +10,6 @@ export default function useChatSocket(conversationId, token) {
     const [error, setError] = useState(null);
 
     useEffect(() => {
-
         if (!conversationId || !token) {
             return;
         }
@@ -30,37 +29,48 @@ export default function useChatSocket(conversationId, token) {
         };
 
         socket.onmessage = (event) => {
-
             try {
-
                 const data = JSON.parse(event.data);
 
-                console.log("Chat received:", data);
+                console.log("📨 WebSocket message:", data);
 
-                if (data.type === "chat_message") {
+                if (data.type === "message") {
+                    const newMessage = {
+                        id: data.id,
+                        conversation: data.conversation,
+                        sender: data.sender,
+                        sender_name: data.sender_name,
+                        message_type: data.message_type || "TEXT",
+                        content: data.content,
+                        created_at: data.created_at,
+                    };
 
-                    setMessages((previous) => [
-                        ...previous,
-                        data
-                    ]);
+                    setMessages((previous) => {
+                        const alreadyExists = previous.some(
+                            (message) =>
+                                message.id === newMessage.id
+                        );
+
+                        if (alreadyExists) {
+                            return previous;
+                        }
+
+                        return [
+                            ...previous,
+                            newMessage
+                        ];
+                    });
                 }
 
-                if (data.type === "error") {
-
-                    setError(data.message);
-                }
-
-            } catch (err) {
-
+            } catch (error) {
                 console.error(
-                    "Invalid WebSocket message:",
-                    err
+                    "WebSocket message error:",
+                    error
                 );
             }
         };
 
         socket.onerror = (event) => {
-
             console.error(
                 "Chat WebSocket error:",
                 event
@@ -72,7 +82,6 @@ export default function useChatSocket(conversationId, token) {
         };
 
         socket.onclose = (event) => {
-
             console.log(
                 "Chat WebSocket disconnected:",
                 event.code
@@ -82,39 +91,33 @@ export default function useChatSocket(conversationId, token) {
         };
 
         return () => {
-
             socket.close();
-
             socketRef.current = null;
-
         };
 
     }, [conversationId, token]);
 
 
     const sendMessage = (message) => {
-
-        if (!socketRef.current) {
-            return;
+        if (
+            socketRef.current &&
+            socketRef.current.readyState === WebSocket.OPEN
+        ) {
+            socketRef.current.send(
+                JSON.stringify({
+                    type: "message",
+                    message: message
+                })
+            );
         }
-
-        if (socketRef.current.readyState !== WebSocket.OPEN) {
-            setError("Chat is not connected.");
-            return;
-        }
-
-        socketRef.current.send(
-            JSON.stringify({
-                message: message
-            })
-        );
     };
 
 
+    // ⭐ THIS WAS MISSING
     return {
         messages,
-        sendMessage,
         isConnected,
-        error
+        error,
+        sendMessage
     };
 }
