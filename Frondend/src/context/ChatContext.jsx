@@ -28,15 +28,17 @@ export const ChatProvider = ({ children }) => {
 
 
     const {
-        messages,
-        sendMessage,
-        isConnected,
-        isLoadingHistory,
-        error
-    } = useChatSocket(
-        activeConversation?.id,
-        token
-    );
+    messages,
+    sendMessage,
+    editMessage,
+    deleteMessage,
+    isConnected,
+    isLoadingHistory,
+    error
+} = useChatSocket(
+    activeConversation?.id,
+    token
+);
 
 
     return (
@@ -44,23 +46,27 @@ export const ChatProvider = ({ children }) => {
         <ChatContext.Provider
             value={{
 
-                activeConversation,
+    activeConversation,
 
-                setActiveConversation,
+    setActiveConversation,
 
-                openConversation,
+    openConversation,
 
-                messages,
+    messages,
 
-                sendMessage,
+    sendMessage,
 
-                isConnected,
+    editMessage,
 
-                isLoadingHistory,
+    deleteMessage,
 
-                error
+    isConnected,
 
-            }}
+    isLoadingHistory,
+
+    error
+
+}}
         >
 
             {children}

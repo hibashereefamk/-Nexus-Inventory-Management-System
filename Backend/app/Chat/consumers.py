@@ -3,7 +3,11 @@ import json
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
 
-from .models import Conversation, ConversationMember, Message
+from .models import (
+    Conversation,
+    ConversationMember,
+    Message
+)
 
 
 class ChatConsumer(AsyncJsonWebsocketConsumer):
@@ -16,15 +20,16 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             await self.close()
             return
 
-        self.conversation_id = self.scope["url_route"]["kwargs"][
-            "conversation_id"
-        ]
+        self.conversation_id = (
+            self.scope["url_route"]["kwargs"][
+                "conversation_id"
+            ]
+        )
 
         self.room_group_name = (
             f"chat_{self.conversation_id}"
         )
 
-        # Check membership
         is_member = await self.check_membership()
 
         if not is_member:
@@ -38,6 +43,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
 
         await self.accept()
 
+
     async def disconnect(self, close_code):
 
         await self.channel_layer.group_discard(
@@ -45,45 +51,147 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             self.channel_name
         )
 
+
+    # =====================================================
+    # RECEIVE
+    # =====================================================
+
     async def receive_json(self, content, **kwargs):
 
-        message_text = content.get("message")
+        event_type = content.get("type")
 
-        if not message_text:
-            return
 
-        message = await self.create_message(
-            message_text
-        )
+        # -------------------------------------------------
+        # SEND NEW MESSAGE
+        # -------------------------------------------------
 
-        await self.channel_layer.group_send(
+        if event_type == "message":
 
-            self.room_group_name,
+            message_text = (
+                content.get("message", "").strip()
+            )
 
-            {
-                "type": "chat_message",
+            if not message_text:
+                return
 
-                "message_id": message["id"],
+            message = await self.create_message(
+                message_text
+            )
 
-                "conversation_id":
-                    message["conversation_id"],
+            await self.channel_layer.group_send(
 
-                "sender_id":
-                    message["sender_id"],
+                self.room_group_name,
 
-                "sender_name":
-                    message["sender_name"],
+                {
+                    "type": "chat_message",
 
-                "message":
-                    message["content"],
+                    "message_id":
+                        message["id"],
 
-                "message_type":
-                    message["message_type"],
+                    "conversation_id":
+                        message["conversation_id"],
 
-                "created_at":
-                    message["created_at"],
-            }
-        )
+                    "sender_id":
+                        message["sender_id"],
+
+                    "sender_name":
+                        message["sender_name"],
+
+                    "message":
+                        message["content"],
+
+                    "message_type":
+                        message["message_type"],
+
+                    "created_at":
+                        message["created_at"],
+                }
+            )
+
+
+        # -------------------------------------------------
+        # EDIT MESSAGE
+        # -------------------------------------------------
+
+        elif event_type == "edit_message":
+
+            message_id = content.get(
+                "message_id"
+            )
+
+            new_content = (
+                content.get("content", "").strip()
+            )
+
+            if not message_id or not new_content:
+                return
+
+            message = await self.edit_message(
+                message_id,
+                new_content
+            )
+
+            if not message:
+                return
+
+            await self.channel_layer.group_send(
+
+                self.room_group_name,
+
+                {
+                    "type": "message_edited",
+
+                    "message_id":
+                        message["id"],
+
+                    "content":
+                        message["content"],
+
+                    "updated_at":
+                        message["updated_at"],
+                }
+            )
+
+
+        # -------------------------------------------------
+        # DELETE MESSAGE
+        # -------------------------------------------------
+
+        elif event_type == "delete_message":
+
+            message_id = content.get(
+                "message_id"
+            )
+
+            if not message_id:
+                return
+
+            message = await self.delete_message(
+                message_id
+            )
+
+            if not message:
+                return
+
+            await self.channel_layer.group_send(
+
+                self.room_group_name,
+
+                {
+                    "type": "message_deleted",
+
+                    "message_id":
+                        message["id"],
+
+                    "deleted_at":
+                        message["updated_at"],
+                }
+            )
+
+
+    # =====================================================
+    # NEW MESSAGE EVENT
+    # =====================================================
 
     async def chat_message(self, event):
 
@@ -113,30 +221,91 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                 event["created_at"],
         })
 
+
+    # =====================================================
+    # EDIT EVENT
+    # =====================================================
+
+    async def message_edited(self, event):
+
+        await self.send_json({
+
+            "type":
+                "message_edited",
+
+            "message_id":
+                event["message_id"],
+
+            "content":
+                event["content"],
+
+            "updated_at":
+                event["updated_at"],
+
+        })
+
+
+    # =====================================================
+    # DELETE EVENT
+    # =====================================================
+
+    async def message_deleted(self, event):
+
+        await self.send_json({
+
+            "type":
+                "message_deleted",
+
+            "message_id":
+                event["message_id"],
+
+            "deleted_at":
+                event["deleted_at"],
+
+        })
+
+
+    # =====================================================
+    # CHECK MEMBERSHIP
+    # =====================================================
+
     @database_sync_to_async
     def check_membership(self):
 
         return ConversationMember.objects.filter(
-            conversation_id=self.conversation_id,
+
+            conversation_id=
+                self.conversation_id,
+
             user=self.user
+
         ).exists()
+
+
+    # =====================================================
+    # CREATE
+    # =====================================================
 
     @database_sync_to_async
     def create_message(self, content):
 
         message = Message.objects.create(
 
-            conversation_id=self.conversation_id,
+            conversation_id=
+                self.conversation_id,
 
             sender=self.user,
 
             message_type="TEXT",
 
             content=content
+
         )
 
         return {
-            "id": message.id,
+
+            "id":
+                message.id,
 
             "conversation_id":
                 message.conversation_id,
@@ -155,4 +324,117 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
 
             "created_at":
                 message.created_at.isoformat(),
+
+        }
+
+
+    # =====================================================
+    # EDIT
+    # =====================================================
+
+    @database_sync_to_async
+    def edit_message(
+        self,
+        message_id,
+        new_content
+    ):
+
+        try:
+
+            message = Message.objects.get(
+
+                id=message_id,
+
+                conversation_id=
+                    self.conversation_id,
+
+                sender=self.user,
+
+                is_deleted=False
+
+            )
+
+        except Message.DoesNotExist:
+
+            return None
+
+
+        message.content = new_content
+
+        message.is_edited = True
+
+        message.save(
+            update_fields=[
+                "content",
+                "is_edited",
+                "updated_at"
+            ]
+        )
+
+
+        return {
+
+            "id":
+                message.id,
+
+            "content":
+                message.content,
+
+            "updated_at":
+                message.updated_at.isoformat(),
+
+        }
+
+
+    # =====================================================
+    # DELETE
+    # =====================================================
+
+    @database_sync_to_async
+    def delete_message(
+        self,
+        message_id
+    ):
+
+        try:
+
+            message = Message.objects.get(
+
+                id=message_id,
+
+                conversation_id=
+                    self.conversation_id,
+
+                sender=self.user,
+
+                is_deleted=False
+
+            )
+
+        except Message.DoesNotExist:
+
+            return None
+
+
+        message.is_deleted = True
+
+        message.content = None
+
+        message.save(
+            update_fields=[
+                "is_deleted",
+                "content",
+                "updated_at"
+            ]
+        )
+
+
+        return {
+
+            "id":
+                message.id,
+
+            "updated_at":
+                message.updated_at.isoformat(),
+
         }

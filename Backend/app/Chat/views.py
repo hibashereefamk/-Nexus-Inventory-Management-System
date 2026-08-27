@@ -37,9 +37,11 @@ class ConversationListView(APIView):
             .order_by("-updated_at")
         )
 
+        # ✅ FIX: Pass the request context here!
         serializer = ConversationSerializer(
             conversations,
-            many=True
+            many=True,
+            context={"request": request}
         )
 
         return Response(serializer.data)
@@ -218,4 +220,66 @@ class CreateDirectConversationView(APIView):
         )
 
 
-class MessageHistoryView()
+class MessageHistoryView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, conversation_id):
+
+        try:
+
+            conversation = Conversation.objects.get(
+                id=conversation_id
+            )
+
+        except Conversation.DoesNotExist:
+
+            return Response(
+                {
+                    "detail": "Conversation not found."
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+
+        # Make sure user belongs to conversation
+
+        is_member = ConversationMember.objects.filter(
+            conversation=conversation,
+            user=request.user
+        ).exists()
+
+
+        if not is_member:
+
+            return Response(
+                {
+                    "detail": "You are not a member of this conversation."
+                },
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+
+        messages = (
+            Message.objects
+            .filter(
+                conversation=conversation,
+                is_deleted=False
+            )
+            .select_related("sender")
+            .order_by("created_at")
+        )
+
+
+        serializer = MesaageSerializer(
+            messages,
+            many=True
+        )
+
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK
+        )
+        
+    

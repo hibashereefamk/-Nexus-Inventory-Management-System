@@ -2,7 +2,7 @@ from django.urls import path
 
 from .views import (
     ConversationListView,
-    EmployeeSearchView,CreateDirectConversationView,
+    EmployeeSearchView,CreateDirectConversationView,MessageHistoryView
 )
 
 
@@ -24,6 +24,9 @@ urlpatterns = [
         CreateDirectConversationView.as_view(),
         name="direct-conversation"
     ),
+    path( "conversations/<int:conversation_id>/messages/",
+         MessageHistoryView.as_view(),
+         name='message-history')
 
 
 ]

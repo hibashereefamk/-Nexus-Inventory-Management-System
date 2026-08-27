@@ -103,6 +103,23 @@ class Message(models.Model):
         null=True
     )
 
+    file = models.FileField(
+        upload_to="chat/files/",
+        blank=True,
+        null=True
+    )
+
+    file_name = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True
+    )
+
+    file_size = models.PositiveBigIntegerField(
+        blank=True,
+        null=True
+    )
+
     reply_to = models.ForeignKey(
         "self",
         on_delete=models.SET_NULL,
@@ -120,4 +137,74 @@ class Message(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.sender} - {self.content[:30]}"
+
+        if self.content:
+            preview = self.content[:30]
+        elif self.file_name:
+            preview = self.file_name
+        else:
+            preview = self.message_type
+
+        return f"{self.sender} - {preview}"
+
+class Call(models.Model):
+
+    CALL_TYPES = (
+        ("VOICE", "Voice"),
+        ("VIDEO", "Video"),
+    )
+
+    STATUS_CHOICES = (
+        ("RINGING", "Ringing"),
+        ("ONGOING", "Ongoing"),
+        ("ENDED", "Ended"),
+        ("MISSED", "Missed"),
+        ("REJECTED", "Rejected"),
+    )
+
+    conversation = models.ForeignKey(
+        Conversation,
+        on_delete=models.CASCADE,
+        related_name="calls"
+    )
+
+    caller = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="calls_made"
+    )
+
+    receiver = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="calls_received"
+    )
+
+    call_type = models.CharField(
+        max_length=10,
+        choices=CALL_TYPES
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="RINGING"
+    )
+
+    started_at = models.DateTimeField(
+        null=True,
+        blank=True
+    )
+
+    ended_at = models.DateTimeField(
+        null=True,
+        blank=True
+    )
+
+    duration = models.PositiveIntegerField(
+        default=0
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
