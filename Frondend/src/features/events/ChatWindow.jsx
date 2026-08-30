@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
 import "./chat.css";
-
 import { useChat } from "../../context/ChatContext";
 
 import MessageInput from "./MessageInput";
@@ -243,10 +242,6 @@ const ChatWindow = () => {
                     )}
 
 
-                    {/* ================================= */}
-                    {/* DELETED MESSAGE */}
-                    {/* ================================= */}
-
                     {message.is_deleted ? (
 
                         <p className="deleted-message">
@@ -321,7 +316,7 @@ const ChatWindow = () => {
 
                             </p>
 
-
+                           
                             <div className="message-bottom">
 
                                <span className="message-time">

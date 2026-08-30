@@ -92,21 +92,53 @@ class ConversationSerializer(serializers.ModelSerializer):
             "created_at": message.created_at,
         }
 
+from rest_framework import serializers
 
-class MesaageSerializer(serializers.ModelSerializer):
-    sender_name =serializers.CharField(source ="sender.username", read_only =True)
-    class Meta :
-        model =Message
-        fields =[
+from .models import (
+    Conversation,
+    ConversationMember,
+    Message,
+)
+
+
+class MessageSerializer(serializers.ModelSerializer):
+
+    sender_name = serializers.CharField(
+        source="sender.username",
+        read_only=True
+    )
+
+    sender_id = serializers.IntegerField(
+        source="sender.id",
+        read_only=True
+    )
+
+    file_url = serializers.SerializerMethodField()
+
+    class Meta:
+
+        model = Message
+
+        fields = [
             "id",
             "conversation",
             "sender",
+            "sender_id",
             "sender_name",
+
             "message_type",
             "content",
+
+            "file",
+            "file_url",
+            "file_name",
+            "file_size",
+
             "reply_to",
+
             "is_edited",
             "is_deleted",
+
             "created_at",
             "updated_at",
         ]
@@ -114,7 +146,23 @@ class MesaageSerializer(serializers.ModelSerializer):
         read_only_fields = [
             "id",
             "sender",
+            "sender_id",
             "sender_name",
+            "file_url",
             "created_at",
             "updated_at",
         ]
+
+    def get_file_url(self, obj):
+
+        if not obj.file:
+            return None
+
+        request = self.context.get("request")
+
+        if request:
+            return request.build_absolute_uri(
+                obj.file.url
+            )
+
+        return obj.file.url

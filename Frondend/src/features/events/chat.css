@@ -1139,7 +1139,7 @@
 
     border-radius: 8px;
 
-    background: #2563eb;
+    background: #c7d5f5;
 
     color: #ffffff;
 
@@ -1180,4 +1180,92 @@
     border-radius: 5px;
 
     cursor: pointer;
+}.deleted-message {
+    font-style: italic;
+
+    opacity: 0.7;
+
+    margin: 0;
+}/* Container holding the buttons and input */
+.chat-input-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative; /* Context for absolute children */
+}
+
+/* Wrapper for emoji toggle button + dropdown */
+.emoji-container {
+  position: relative; 
+}
+
+/* Absolute position for the picker popover */
+.emoji-picker {
+  position: absolute;
+  bottom: 50px; /* Positions popover above the input bar */
+  left: 0;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.chat-image {
+    display: block;
+
+    max-width: 280px;
+
+    max-height: 350px;
+
+    width: auto;
+
+    height: auto;
+
+    border-radius: 8px;
+
+    object-fit: cover;
+
+    cursor: pointer;
+}
+
+.chat-video {
+    display: block;
+
+    width: 300px;
+
+    max-width: 100%;
+
+    border-radius: 8px;
+}.chat-audio {
+    width: 280px;
+
+    max-width: 100%;
+}.chat-file {
+    display: flex;
+
+    align-items: center;
+
+    gap: 10px;
+
+    padding: 10px;
+
+    min-width: 200px;
+
+    text-decoration: none;
+
+    color: #2563eb;
+
+    background: #f8fafc;
+
+    border: 1px solid #e5e7eb;
+
+    border-radius: 8px;
+}
+
+.chat-file span {
+    overflow: hidden;
+
+    text-overflow: ellipsis;
+
+    white-space: nowrap;
 }

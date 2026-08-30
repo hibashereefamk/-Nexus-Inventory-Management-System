@@ -2,7 +2,8 @@ from django.urls import path
 
 from .views import (
     ConversationListView,
-    EmployeeSearchView,CreateDirectConversationView,MessageHistoryView
+    EmployeeSearchView,CreateDirectConversationView,MessageHistoryView,
+    ChatFileUploadView
 )
 
 
@@ -26,7 +27,12 @@ urlpatterns = [
     ),
     path( "conversations/<int:conversation_id>/messages/",
          MessageHistoryView.as_view(),
-         name='message-history')
+         name='message-history'),
+
+    path(
+    "conversations/<int:conversation_id>/upload/",
+    ChatFileUploadView.as_view(), name="chat-file-upload"
+),
 
 
 ]

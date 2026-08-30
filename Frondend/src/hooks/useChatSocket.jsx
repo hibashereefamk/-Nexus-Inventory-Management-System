@@ -181,7 +181,7 @@ export default function useChatSocket(
         // =============================================
         // NEW MESSAGE
         // =============================================
-
+        
         if (data.type === "message") {
 
             const newMessage = {
@@ -237,7 +237,64 @@ export default function useChatSocket(
 
         }
 
+        else if (data.type === "attachment") {
 
+    const newMessage = {
+
+        id: data.id,
+
+        conversation:
+            data.conversation,
+
+        sender:
+            data.sender,
+
+        sender_name:
+            data.sender_name,
+
+        message_type:
+            data.message_type,
+
+        content:
+            data.content,
+
+        file_url:
+            data.file_url,
+
+        file_name:
+            data.file_name,
+
+        file_size:
+            data.file_size,
+
+        created_at:
+            data.created_at,
+
+        is_edited: false,
+
+        is_deleted: false,
+    };
+
+
+    setMessages(previous => {
+
+        const exists =
+            previous.some(
+                message =>
+                    message.id ===
+                    newMessage.id
+            );
+
+        if (exists) {
+            return previous;
+        }
+
+        return [
+            ...previous,
+            newMessage
+        ];
+    });
+}
         // =============================================
         // MESSAGE EDITED
         // =============================================

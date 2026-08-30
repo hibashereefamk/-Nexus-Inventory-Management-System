@@ -221,7 +221,55 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                 event["created_at"],
         })
 
+    async def chat_attachment(self,event):
 
+        await self.send_json({
+
+        "type":
+            "attachment",
+
+        "id":
+            event["message_id"],
+
+        "conversation":
+            event["conversation_id"],
+
+        "sender":
+            event["sender_id"],
+
+        "sender_name":
+            event["sender_name"],
+
+        "message_type":
+            event["message_type"],
+
+        "content":
+            event["content"],
+
+        "file_url":
+            event["file_url"],
+
+        "file_name":
+            event["file_name"],
+
+        "file_size":
+            event["file_size"],
+
+        "created_at":
+            event["created_at"],
+
+            "is_edited": event.get(
+            "is_edited",
+            False
+        ),
+
+        "is_deleted": event.get(
+            "is_deleted",
+            False
+        ),
+    
+    })
+        
     # =====================================================
     # EDIT EVENT
     # =====================================================
@@ -326,7 +374,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                 message.created_at.isoformat(),
 
         }
-
+    
 
     # =====================================================
     # EDIT
