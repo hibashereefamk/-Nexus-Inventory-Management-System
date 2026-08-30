@@ -1,95 +1,87 @@
-import React, {
-    createContext,
-    useContext,
-    useState
-} from "react";
-
+import React, { createContext, useContext, useState } from "react";
 import useChatSocket from "../hooks/useChatSocket";
-
 
 const ChatContext = createContext(null);
 
-
 export const ChatProvider = ({ children }) => {
+  const [activeConversation, setActiveConversation] = useState(null);
 
-    const [activeConversation, setActiveConversation] =
-        useState(null);
+  const API = "http://127.0.0.1:8000";
+  const token = localStorage.getItem("access_token");
 
+  const openConversation = (conversation) => {
+    setActiveConversation(conversation);
+  };
 
-    const token =
-        localStorage.getItem("access_token");
+  const {
+        messages,
+        setMessages,
+        isConnected,
+        error,
 
+        sendMessage,
+        editMessage,
+        deleteMessage,
 
-    const openConversation = (conversation) => {
+        sendCallOffer,
+        sendCallAnswer,
+        sendIceCandidate,
 
-        setActiveConversation(conversation);
+        rejectCall,
+        endCall,
 
-    };
+    } = useChatSocket(
+        conversationId,
+        token,
+        currentUserId
+    );
 
-
-    const {
-    messages,
-    sendMessage,
-    editMessage,
-    deleteMessage,
-    isConnected,
-    isLoadingHistory,
-    error
-} = useChatSocket(
-    activeConversation?.id,
-    token
-);
-
-
-    return (
-
+  return (
         <ChatContext.Provider
             value={{
 
-    activeConversation,
+                messages,
 
-    setActiveConversation,
+                setMessages,
 
-    openConversation,
+                isConnected,
 
-    messages,
+                error,
 
-    sendMessage,
+                sendMessage,
 
-    editMessage,
+                editMessage,
 
-    deleteMessage,
+                deleteMessage,
 
-    isConnected,
+                sendCallOffer,
 
-    isLoadingHistory,
+                sendCallAnswer,
 
-    error
+                sendIceCandidate,
 
-}}
+                rejectCall,
+
+                endCall,
+
+            }}
         >
-
             {children}
-
         </ChatContext.Provider>
-
     );
 
+  
 };
-
 
 export const useChat = () => {
 
     const context = useContext(ChatContext);
 
     if (!context) {
-
         throw new Error(
             "useChat must be used inside ChatProvider"
         );
-
     }
 
     return context;
-
 };

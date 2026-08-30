@@ -1,5 +1,30 @@
+import os
+
 from django.db import models
 from django.conf import settings
+
+
+def chat_file_upload_path(instance, filename):
+
+    if instance.message_type == "IMAGE":
+        folder = "chat/images"
+
+    elif instance.message_type == "VIDEO":
+        folder = "chat/videos"
+
+    elif instance.message_type == "VOICE":
+        folder = "chat/voice"
+
+    elif instance.message_type == "FILE":
+        folder = "chat/files"
+
+    else:
+        folder = "chat/other"
+
+    return os.path.join(
+        folder,
+        filename
+    )
 
 
 class Conversation(models.Model):
@@ -104,7 +129,7 @@ class Message(models.Model):
     )
 
     file = models.FileField(
-        upload_to="chat/files/",
+        upload_to=chat_file_upload_path,
         blank=True,
         null=True
     )
@@ -208,3 +233,4 @@ class Call(models.Model):
     created_at = models.DateTimeField(
         auto_now_add=True
     )
+

@@ -10,6 +10,8 @@ from rest_framework import status
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
+from django.utils import timezone
+
 from django.db import transaction
 from .models import (
     Conversation,
@@ -482,4 +484,301 @@ class ChatFileUploadView(APIView):
         return Response(
             serializer.data,
             status=status.HTTP_201_CREATED
+        )
+
+
+
+from django.shortcuts import get_object_or_404
+from django.contrib.auth import get_user_model
+
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
+
+from .models import (
+    Conversation,
+    ConversationMember,
+    Call
+)
+
+from .serializers import CallSerializer
+
+
+User = get_user_model()
+
+
+class StartCallView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+
+        user = request.user
+
+        conversation_id = request.data.get(
+            "conversation_id"
+        )
+
+        receiver_id = request.data.get(
+            "receiver_id"
+        )
+
+        call_type = request.data.get(
+            "call_type"
+        )
+
+        # ==========================================
+        # VALIDATION
+        # ==========================================
+
+        if not conversation_id:
+
+            return Response(
+                {
+                    "detail":
+                        "conversation_id is required."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not receiver_id:
+
+            return Response(
+                {
+                    "detail":
+                        "receiver_id is required."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if call_type not in ["VOICE", "VIDEO"]:
+
+            return Response(
+                {
+                    "detail":
+                        "call_type must be VOICE or VIDEO."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # ==========================================
+        # CONVERSATION
+        # ==========================================
+
+        conversation = get_object_or_404(
+            Conversation,
+            id=conversation_id
+        )
+
+        # ==========================================
+        # CALLER MUST BE MEMBER
+        # ==========================================
+
+        caller_is_member = (
+            ConversationMember.objects
+            .filter(
+                conversation=conversation,
+                user=user
+            )
+            .exists()
+        )
+
+        if not caller_is_member:
+
+            return Response(
+                {
+                    "detail":
+                        "You are not a member of this conversation."
+                },
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # ==========================================
+        # RECEIVER
+        # ==========================================
+
+        receiver = get_object_or_404(
+            User,
+            id=receiver_id,
+            is_active=True
+        )
+
+        # ==========================================
+        # RECEIVER MUST BE MEMBER
+        # ==========================================
+
+        receiver_is_member = (
+            ConversationMember.objects
+            .filter(
+                conversation=conversation,
+                user=receiver
+            )
+            .exists()
+        )
+
+        if not receiver_is_member:
+
+            return Response(
+                {
+                    "detail":
+                        "Receiver is not a member of this conversation."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # ==========================================
+        # CANNOT CALL YOURSELF
+        # ==========================================
+
+        if user.id == receiver.id:
+
+            return Response(
+                {
+                    "detail":
+                        "You cannot call yourself."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # ==========================================
+        # CREATE CALL
+        # ==========================================
+
+        call = Call.objects.create(
+
+            conversation=conversation,
+
+            caller=user,
+
+            receiver=receiver,
+
+            call_type=call_type,
+
+            status="RINGING"
+        )
+
+        serializer = CallSerializer(
+            call,
+            context={
+                "request": request
+            }
+        )
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_201_CREATED
+        )
+
+class UpdateCallView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, call_id):
+
+        user = request.user
+
+        call = get_object_or_404(
+            Call,
+            id=call_id
+        )
+
+        # ==========================================
+        # ONLY CALL PARTICIPANTS
+        # ==========================================
+
+        if user.id not in [
+            call.caller_id,
+            call.receiver_id
+        ]:
+
+            return Response(
+                {
+                    "detail":
+                        "You are not part of this call."
+                },
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        new_status = request.data.get(
+            "status"
+        )
+
+        allowed_statuses = [
+            "ONGOING",
+            "ENDED",
+            "MISSED",
+            "REJECTED"
+        ]
+
+        if new_status not in allowed_statuses:
+
+            return Response(
+                {
+                    "detail":
+                        "Invalid call status."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # ==========================================
+        # ONGOING
+        # ==========================================
+
+        if new_status == "ONGOING":
+
+            call.status = "ONGOING"
+
+            if not call.started_at:
+                call.started_at = timezone.now()
+
+        # ==========================================
+        # END
+        # ==========================================
+
+        elif new_status == "ENDED":
+
+            call.status = "ENDED"
+
+            call.ended_at = timezone.now()
+
+            if call.started_at:
+
+                duration = (
+                    call.ended_at -
+                    call.started_at
+                ).total_seconds()
+
+                call.duration = int(
+                    duration
+                )
+
+        # ==========================================
+        # MISSED
+        # ==========================================
+
+        elif new_status == "MISSED":
+
+            call.status = "MISSED"
+
+            call.ended_at = timezone.now()
+
+        # ==========================================
+        # REJECTED
+        # ==========================================
+
+        elif new_status == "REJECTED":
+
+            call.status = "REJECTED"
+
+            call.ended_at = timezone.now()
+
+        call.save()
+
+        serializer = CallSerializer(
+            call
+        )
+
+        return Response(
+            serializer.data
         )

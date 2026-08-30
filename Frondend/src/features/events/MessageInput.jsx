@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import EmojiPicker from "emoji-picker-react";
+import {Paperclip,Smile,Mic,Send,StopCircle} from "lucide-react"
 import { useChat } from "../../context/ChatContext"; // Ensure token & activeConversation are exported here or via your AuthContext
 
 const MessageInput = () => {
@@ -38,37 +39,83 @@ const MessageInput = () => {
     return "FILE";
   };
 
-  // Generic upload handler used by both file attachment and voice recording
-  const sendFileUploadRequest = async (file, messageType) => {
+ const sendFileUploadRequest = async (
+    file,
+    messageType
+) => {
+
     if (!activeConversation?.id) {
-      console.error("No active conversation selected.");
-      return;
+        console.error(
+            "No active conversation selected."
+        );
+        return;
     }
 
     const formData = new FormData();
-    formData.append("conversation_id", activeConversation.id);
-    formData.append("file", file);
-    formData.append("message_type", messageType);
+
+    formData.append(
+        "file",
+        file
+    );
+
+    formData.append(
+        "message_type",
+        messageType
+    );
 
     try {
-      const response = await fetch(`${API || ""}/api/chat/messages/upload/`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
 
-      if (!response.ok) {
-        throw new Error("Upload failed");
-      }
+        const response = await fetch(
 
-      const data = await response.json();
-      console.log("File uploaded successfully:", data);
+            `${API}/api/chat/conversations/${activeConversation.id}/upload/`,
+
+            {
+                method: "POST",
+
+                headers: {
+                    Authorization:
+                        `Bearer ${token}`,
+                },
+
+                body: formData,
+            }
+        );
+
+
+        if (!response.ok) {
+
+            const errorData =
+                await response.json();
+
+            console.error(
+                "Upload error:",
+                errorData
+            );
+
+            throw new Error(
+                "Upload failed"
+            );
+        }
+
+
+        const data =
+            await response.json();
+
+        console.log(
+            "✅ File uploaded:",
+            data
+        );
+
+
     } catch (error) {
-      console.error("Error uploading file:", error);
+
+        console.error(
+            "❌ Error uploading file:",
+            error
+        );
+
     }
-  };
+};
 
   const handleFileChange = async (event) => {
     const file = event.target.files?.[0];
@@ -136,7 +183,7 @@ const MessageInput = () => {
         className="attachment-button"
         onClick={() => fileInputRef.current?.click()}
       >
-        📎
+        <Paperclip size={20} />
       </button>
 
       {/* Voice Recording Button */}
@@ -145,13 +192,13 @@ const MessageInput = () => {
         className={`record-button ${isRecording ? "recording" : ""}`}
         onClick={isRecording ? stopRecording : startRecording}
       >
-        {isRecording ? "⏹️ Stop" : "🎤"}
+        {isRecording ? <StopCircle size={20}/> : <Mic size={20} />}
       </button>
 
       {/* Emoji Picker */}
       <div className="emoji-container">
         <button type="button" onClick={() => setShowEmoji((prev) => !prev)}>
-          😊
+          <Smile size={20} />
         </button>
 
         {showEmoji && (
@@ -176,7 +223,7 @@ const MessageInput = () => {
         onClick={handleSend}
         disabled={!isConnected || !message.trim()}
       >
-        ➤
+         <Send size={19} />
       </button>
     </div>
   );

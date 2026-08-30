@@ -1269,3 +1269,124 @@
 
     white-space: nowrap;
 }
+
+.chat-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+
+.chat-action-button {
+    width: 38px;
+    height: 38px;
+
+    border: none;
+    background: transparent;
+
+    border-radius: 8px;
+
+    font-size: 19px;
+
+    cursor: pointer;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    color: #555;
+}
+
+
+.chat-action-button:hover {
+    background: #f2f4f7;
+    color: #222;
+}
+
+
+/* ============================= */
+/* THREE DOT MENU */
+/* ============================= */
+
+.chat-menu-wrapper {
+    position: relative;
+}
+
+
+.chat-settings-menu {
+    position: absolute;
+
+    top: 45px;
+    right: 0;
+
+    width: 220px;
+
+    background: white;
+
+    border: 1px solid #e5e7eb;
+
+    border-radius: 10px;
+
+    box-shadow:
+        0 8px 25px rgba(0, 0, 0, 0.12);
+
+    padding: 6px;
+
+    z-index: 1000;
+}
+
+
+.chat-settings-menu button {
+    width: 100%;
+
+    border: none;
+
+    background: transparent;
+
+    padding: 10px 12px;
+
+    border-radius: 7px;
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 10px;
+
+    text-align: left;
+
+    cursor: pointer;
+
+    font-size: 14px;
+
+    color: #333;
+}
+
+
+.chat-settings-menu button:hover {
+    background: #f5f6f8;
+}
+
+
+.chat-settings-menu button span {
+    flex: 1;
+}
+
+
+.menu-divider {
+    height: 1px;
+
+    background: #eeeeee;
+
+    margin: 5px 0;
+}
+
+
+.chat-settings-menu .danger-option {
+    color: #dc2626;
+}
+
+
+.chat-settings-menu .danger-option:hover {
+    background: #fef2f2;
+}

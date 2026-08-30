@@ -166,3 +166,65 @@ class MessageSerializer(serializers.ModelSerializer):
             )
 
         return obj.file.url
+
+
+
+from django.contrib.auth import get_user_model
+from rest_framework import serializers
+
+from .models import Call
+
+
+User = get_user_model()
+
+
+class CallSerializer(serializers.ModelSerializer):
+
+    caller_name = serializers.CharField(
+        source="caller.username",
+        read_only=True
+    )
+
+    receiver_name = serializers.CharField(
+        source="receiver.username",
+        read_only=True
+    )
+
+    class Meta:
+
+        model = Call
+
+        fields = [
+            "id",
+
+            "conversation",
+
+            "caller",
+            "caller_name",
+
+            "receiver",
+            "receiver_name",
+
+            "call_type",
+
+            "status",
+
+            "started_at",
+            "ended_at",
+
+            "duration",
+
+            "created_at",
+        ]
+
+        read_only_fields = [
+            "id",
+            "caller",
+            "caller_name",
+            "receiver_name",
+            "status",
+            "started_at",
+            "ended_at",
+            "duration",
+            "created_at",
+        ]
