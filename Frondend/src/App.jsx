@@ -57,14 +57,7 @@ function App() {
     <Route path="/tasks/show" element={<StaffTasksView />} />
     <Route path="/inventory/lookup" element={<StockLookup />} />
     <Route path="/inventory/history" element={<ProcurementHistory />} />
-    <Route
-    path="/chat"
-    element={
-        <ChatProvider>
-            <ChatPage />
-        </ChatProvider>
-    }
-/>
+    <Route path="/chat"  element={<ChatProvider><ChatPage /></ChatProvider>}/>
     <Route path="/requests" element={<SupplyRequest />} />
     <Route path="/inventory/alerts" element={<InventoryAlertPage />} />
     <Route path="/inventory" element={<ProductList />}/>

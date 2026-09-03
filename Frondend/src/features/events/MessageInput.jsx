@@ -1,15 +1,23 @@
-import { useState, useRef } from "react";
+import React, { useState, useRef } from "react";
 import EmojiPicker from "emoji-picker-react";
-import {Paperclip,Smile,Mic,Send,StopCircle} from "lucide-react"
-import { useChat } from "../../context/ChatContext"; // Ensure token & activeConversation are exported here or via your AuthContext
+import { Paperclip, Smile, Mic, Send, StopCircle } from "lucide-react";
+import { useChat } from "../../context/ChatContext";
 
 const MessageInput = () => {
-  // Grab activeConversation, token, and API base URL from context
-  const { sendMessage, isConnected, activeConversation, token, API } = useChat();
+  // Pull setMessages (or handleNewMessage) along with other values from context
+  const {
+    sendMessage,
+    isConnected,
+    activeConversation,
+    token,
+    API,
+    setMessages, 
+  } = useChat();
 
   const [message, setMessage] = useState("");
   const [showEmoji, setShowEmoji] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   const fileInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -20,9 +28,17 @@ const MessageInput = () => {
   };
 
   const handleSend = () => {
-    if (!message.trim()) return;
-    sendMessage(message);
+    const trimmedMessage = message.trim();
+    if (!trimmedMessage) return;
+
+    if (!isConnected) {
+      console.error("WebSocket is not connected.");
+      return;
+    }
+
+    sendMessage(trimmedMessage);
     setMessage("");
+    setShowEmoji(false);
   };
 
   const handleKeyDown = (event) => {
@@ -39,90 +55,66 @@ const MessageInput = () => {
     return "FILE";
   };
 
- const sendFileUploadRequest = async (
-    file,
-    messageType
-) => {
-
+  const sendFileUploadRequest = async (file, messageType) => {
     if (!activeConversation?.id) {
-        console.error(
-            "No active conversation selected."
-        );
-        return;
+      console.error("No active conversation selected.");
+      return;
+    }
+    if (!token) {
+      console.error("Authentication token is missing.");
+      return;
     }
 
     const formData = new FormData();
-
-    formData.append(
-        "file",
-        file
-    );
-
-    formData.append(
-        "message_type",
-        messageType
-    );
+    formData.append("file", file);
+    formData.append("message_type", messageType);
 
     try {
-
-        const response = await fetch(
-
-            `${API}/api/chat/conversations/${activeConversation.id}/upload/`,
-
-            {
-                method: "POST",
-
-                headers: {
-                    Authorization:
-                        `Bearer ${token}`,
-                },
-
-                body: formData,
-            }
-        );
-
-
-        if (!response.ok) {
-
-            const errorData =
-                await response.json();
-
-            console.error(
-                "Upload error:",
-                errorData
-            );
-
-            throw new Error(
-                "Upload failed"
-            );
+      setIsUploading(true);
+      const response = await fetch(
+        `${API}/api/chat/conversations/${activeConversation.id}/upload/`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
         }
+      );
 
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch {
+          errorData = { detail: "Upload failed." };
+        }
+        console.error("Upload error:", errorData);
+        throw new Error(errorData.detail || "File upload failed.");
+      }
 
-        const data =
-            await response.json();
+      const uploadedMessage = await response.json();
+      console.log("✅ File uploaded:", uploadedMessage);
 
-        console.log(
-            "✅ File uploaded:",
-            data
-        );
-
-
+      // CRITICAL STEP: Manually push the created file message into your state 
+      // if WebSocket doesn't broadcast uploaded attachments immediately.
+      if (setMessages) {
+        setMessages((prev) => [...prev, uploadedMessage]);
+      }
     } catch (error) {
-
-        console.error(
-            "❌ Error uploading file:",
-            error
-        );
-
+      console.error("❌ Error uploading file:", error);
+    } finally {
+      setIsUploading(false);
     }
-};
+  };
 
   const handleFileChange = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    await sendFileUploadRequest(file, getMessageType(file));
-    event.target.value = ""; // Reset input after upload
+    const messageType = getMessageType(file);
+    await sendFileUploadRequest(file, messageType);
+    event.target.value = ""; // Reset file input
   };
 
   const uploadAudio = async (audioBlob) => {
@@ -175,6 +167,7 @@ const MessageInput = () => {
         ref={fileInputRef}
         onChange={handleFileChange}
         style={{ display: "none" }}
+        accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
       />
 
       {/* Trigger File Input */}
@@ -182,6 +175,8 @@ const MessageInput = () => {
         type="button"
         className="attachment-button"
         onClick={() => fileInputRef.current?.click()}
+        disabled={!isConnected || isUploading || isRecording}
+        title="Attach file"
       >
         <Paperclip size={20} />
       </button>
@@ -191,13 +186,20 @@ const MessageInput = () => {
         type="button"
         className={`record-button ${isRecording ? "recording" : ""}`}
         onClick={isRecording ? stopRecording : startRecording}
+        disabled={!isConnected || isUploading}
+        title={isRecording ? "Stop recording" : "Record voice"}
       >
-        {isRecording ? <StopCircle size={20}/> : <Mic size={20} />}
+        {isRecording ? <StopCircle size={20} /> : <Mic size={20} />}
       </button>
 
       {/* Emoji Picker */}
       <div className="emoji-container">
-        <button type="button" onClick={() => setShowEmoji((prev) => !prev)}>
+        <button
+          type="button"
+          onClick={() => setShowEmoji((prev) => !prev)}
+          disabled={isRecording || isUploading}
+          title="Emoji"
+        >
           <Smile size={20} />
         </button>
 
@@ -214,16 +216,24 @@ const MessageInput = () => {
         value={message}
         onChange={(event) => setMessage(event.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder={isRecording ? "Recording voice..." : "Type a message..."}
-        disabled={isRecording}
+        placeholder={
+          isRecording
+            ? "Recording voice..."
+            : isUploading
+            ? "Uploading..."
+            : "Type a message..."
+        }
+        disabled={isRecording || isUploading || !isConnected}
       />
 
+      {/* Send Button */}
       <button
         type="button"
         onClick={handleSend}
-        disabled={!isConnected || !message.trim()}
+        disabled={!isConnected || !message.trim() || isRecording || isUploading}
+        title="Send message"
       >
-         <Send size={19} />
+        <Send size={19} />
       </button>
     </div>
   );

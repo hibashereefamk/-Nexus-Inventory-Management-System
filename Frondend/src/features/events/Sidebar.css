@@ -1,179 +1,551 @@
 :root {
-  /* StockSphere Palette */
-  --sidebar-bg: #1e293b;       /* Professional deep slate blue-grey */
-  --sidebar-active: #2563eb;   /* Modern crisp blue for primary items */
-  --text-main: #f8fafc;
-  --text-muted: #94a3b8;
-  --border-color: #334155;
-  --ai-accent: #8b5cf6;       /* Bright professional purple for AI */
+    /* =====================================================
+       SIDEBAR COLORS
+    ===================================================== */
+
+    --sidebar-bg: #1e293b;
+    --sidebar-active: #2563eb;
+
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+
+    --border-color: #334155;
+
+    --ai-accent: #8b5cf6;
+    --chat-accent: #10b981;
 }
+
+
+/* =========================================================
+   SIDEBAR
+========================================================= */
 
 .sidebar {
-  width: 260px;
-  height: 100vh;
-  background-color: var(--sidebar-bg);
-  color: var(--text-main);
-  display: flex;
-  flex-direction: column;
-  position: fixed;
-  left: 0;
-  top: 0;
-  font-family: 'Segoe UI', Inter, sans-serif;
-  border-right: 1px solid var(--border-color);
-  box-sizing: border-box;
+
+    width: 260px;
+    height: 100vh;
+
+    position: fixed;
+    top: 0;
+    left: 0;
+
+    display: flex;
+    flex-direction: column;
+
+    background-color: var(--sidebar-bg);
+    color: var(--text-main);
+
+    border-right: 1px solid var(--border-color);
+
+    box-sizing: border-box;
+
+    font-family:
+        'Segoe UI',
+        Inter,
+        sans-serif;
+
+    z-index: 1000;
+
+    /*
+       Smoothly change from 260px to 72px
+    */
+    transition: width 0.25s ease;
 }
 
-/* Nameplate Styling */
+
+/* =========================================================
+   BRAND
+========================================================= */
+
 .sidebar-nameplate {
-  display: flex;
-  align-items: center;
-  padding: 20px 24px;
-  gap: 12px;
+
+    display: flex;
+
+    align-items: center;
+
+    padding: 20px 24px;
+
+    gap: 12px;
+
+    box-sizing: border-box;
+
+    white-space: nowrap;
 }
+
 
 .logo-icon {
-  background: var(--sidebar-active);
-  color: #ffffff;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  font-weight: 700;
-  font-size: 16px;
+
+    width: 32px;
+    height: 32px;
+
+    min-width: 32px;
+
+    display: flex;
+
+    align-items: center;
+    justify-content: center;
+
+    background: var(--sidebar-active);
+
+    color: #ffffff;
+
+    border-radius: 6px;
+
+    font-weight: 700;
+
+    font-size: 16px;
 }
+
 
 .nameplate-text {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.1;
+
+    display: flex;
+
+    flex-direction: column;
+
+    line-height: 1.1;
+
+    overflow: hidden;
+
+    white-space: nowrap;
 }
+
 
 .brand-name {
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  color: var(--text-main);
+
+    font-size: 16px;
+
+    font-weight: 700;
+
+    letter-spacing: 1px;
+
+    color: var(--text-main);
 }
+
 
 .brand-sub {
-  font-size: 9px;
-  font-weight: 600;
-  color: var(--text-muted);
-  letter-spacing: 1.5px;
+
+    font-size: 9px;
+
+    font-weight: 600;
+
+    color: var(--text-muted);
+
+    letter-spacing: 1.5px;
+
+    margin-top: 2px;
 }
+
+
+/* =========================================================
+   DIVIDER
+========================================================= */
 
 .sidebar-divider {
-  border: 0;
-  border-top: 1px solid var(--border-color);
-  margin: 0 16px;
+
+    border: 0;
+
+    border-top:
+        1px solid var(--border-color);
+
+    margin: 0 16px;
 }
 
-/* Navigation Section */
+
+/* =========================================================
+   MAIN NAVIGATION
+========================================================= */
+
 .sidebar-nav {
-  flex: 1;
-  overflow-y: auto; /* Only menu scrollable if list is too long */
-  padding: 20px 16px;
+
+    flex: 1;
+
+    overflow-y: auto;
+
+    overflow-x: hidden;
+
+    padding: 20px 16px;
+
+    /*
+       Hide scrollbar
+    */
+
+    scrollbar-width: none;
 }
 
-.sidebar-nav ul, 
-.sidebar-footer ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.sidebar-nav::-webkit-scrollbar {
+
+    display: none;
 }
+
+
+.sidebar-nav ul,
+.sidebar-footer ul {
+
+    list-style: none;
+
+    padding: 0;
+
+    margin: 0;
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 4px;
+}
+
+
+/* =========================================================
+   SECTION LABEL
+========================================================= */
 
 .sidebar-label {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.75px;
-  color: var(--text-muted);
-  padding-left: 8px;
-  margin-bottom: 8px;
-  font-weight: 600;
+
+    font-size: 11px;
+
+    text-transform: uppercase;
+
+    letter-spacing: 0.75px;
+
+    color: var(--text-muted);
+
+    padding-left: 8px;
+
+    margin: 0 0 8px;
+
+    font-weight: 600;
 }
 
-/* Links Layout styling */
+
+/* =========================================================
+   NAVIGATION LINKS
+========================================================= */
+
 .sidebar-nav li a,
 .sidebar-footer li a {
-  display: flex;
-  align-items: center;
-  padding: 10px 12px;
-  color: var(--text-muted);
-  text-decoration: none;
-  border-radius: 6px;
-  transition: all 0.15s ease;
+
+    display: flex;
+
+    align-items: center;
+
+    width: 100%;
+
+    min-height: 42px;
+
+    padding: 10px 12px;
+
+    box-sizing: border-box;
+
+    color: var(--text-muted);
+
+    text-decoration: none;
+
+    border-radius: 6px;
+
+    transition:
+        background-color 0.15s ease,
+        color 0.15s ease;
+
+    white-space: nowrap;
 }
+
+
+/* =========================================================
+   HOVER
+========================================================= */
 
 .sidebar-nav li a:hover,
 .sidebar-footer li a:hover {
-  background-color: rgba(255, 255, 255, 0.04);
-  color: var(--text-main);
+
+    background-color:
+        rgba(255, 255, 255, 0.04);
+
+    color: var(--text-main);
 }
 
-/* Icons styling */
+
+/* =========================================================
+   ICON
+========================================================= */
+
 .nav-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: color 0.15s ease;
+
+    width: 20px;
+
+    min-width: 20px;
+
+    height: 20px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    transition:
+        color 0.15s ease;
 }
 
-.sidebar-nav li a:hover .nav-icon,
-.sidebar-footer li a:hover .nav-icon {
-  color: var(--text-main);
-}
+
+/* =========================================================
+   TEXT
+========================================================= */
 
 .nav-text {
-  font-size: 13.5px;
-  font-weight: 500;
-  margin-left: 12px;
+
+    font-size: 13.5px;
+
+    font-weight: 500;
+
+    margin-left: 12px;
+
+    white-space: nowrap;
 }
 
-/* Base Active Links */
+
+/* =========================================================
+   ACTIVE
+========================================================= */
+
 .sidebar-nav li a.active {
-  background-color: var(--sidebar-active);
-  color: #ffffff;
-}
-.sidebar-nav li a.active .nav-icon {
-  color: #ffffff;
+
+    background-color:
+        var(--sidebar-active);
+
+    color: #ffffff;
 }
 
-/* Feature specific styling for Chat and AI */
-.chat-icon { color: var(--chat-accent); }
-.ai-icon { color: var(--ai-accent); }
+
+.sidebar-nav li a.active .nav-icon {
+
+    color: #ffffff;
+}
+
+
+/* =========================================================
+   CHAT
+========================================================= */
+
+.chat-icon {
+
+    color: var(--chat-accent);
+}
+
 
 .sidebar-footer li a.active.chat-active {
-  background-color: rgba(16, 185, 129, 0.15);
-  color: var(--chat-accent);
-  font-weight: 600;
+
+    background-color:
+        rgba(16, 185, 129, 0.15);
+
+    color:
+        var(--chat-accent);
+
+    font-weight: 600;
 }
+
+
+/* =========================================================
+   AI
+========================================================= */
+
+.ai-icon {
+
+    color: var(--ai-accent);
+}
+
 
 .sidebar-footer li a.active.ai-active {
-  background-color: rgba(139, 92, 246, 0.15);
-  color: var(--ai-accent);
-  font-weight: 600;
+
+    background-color:
+        rgba(139, 92, 246, 0.15);
+
+    color:
+        var(--ai-accent);
+
+    font-weight: 600;
 }
 
-/* Notification Badges */
+
+/* =========================================================
+   NOTIFICATION BADGE
+========================================================= */
+
 .notification-badge {
-  margin-left: auto;
-  background-color: #ef4444;
-  color: white;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 6px;
-  border-radius: 10px;
-  line-height: 1;
+
+    margin-left: auto;
+
+    background-color: #ef4444;
+
+    color: white;
+
+    font-size: 11px;
+
+    font-weight: 600;
+
+    padding: 2px 6px;
+
+    border-radius: 10px;
+
+    line-height: 1;
 }
 
-/* Fixed Footer Container */
+
+/* =========================================================
+   FOOTER
+========================================================= */
+
 .sidebar-footer {
-  margin-top: auto;
-  padding: 16px;
-  background-color: var(--sidebar-bg);
+
+    margin-top: auto;
+
+    padding: 16px;
+
+    background-color:
+        var(--sidebar-bg);
+}
+
+
+/* =========================================================
+   RESPONSIVE SIDEBAR
+   TABLET / SHORT WINDOW
+
+   1000px and below
+========================================================= */
+
+@media (max-width: 1000px) {
+
+    .sidebar {
+
+        width: 72px;
+    }
+
+
+    /* -----------------------------------------
+       BRAND
+    ----------------------------------------- */
+
+    .sidebar-nameplate {
+
+        justify-content: center;
+
+        padding: 20px 0;
+
+    }
+
+
+    .nameplate-text {
+
+        display: none;
+    }
+
+
+    /* -----------------------------------------
+       SECTION LABEL
+    ----------------------------------------- */
+
+    .sidebar-label {
+
+        display: none;
+    }
+
+
+    /* -----------------------------------------
+       NAVIGATION
+    ----------------------------------------- */
+
+    .sidebar-nav {
+
+        padding:
+            20px 10px;
+    }
+
+
+    .sidebar-footer {
+
+        padding:
+            16px 10px;
+    }
+
+
+    /* -----------------------------------------
+       LINKS
+    ----------------------------------------- */
+
+    .sidebar-nav li a,
+    .sidebar-footer li a {
+
+        justify-content: center;
+
+        padding: 10px 0;
+
+    }
+
+
+    /* -----------------------------------------
+       TEXT HIDDEN
+    ----------------------------------------- */
+
+    .nav-text {
+
+        display: none;
+    }
+
+
+    /* -----------------------------------------
+       ICON
+    ----------------------------------------- */
+
+    .nav-icon {
+
+        margin: 0;
+
+        width: 22px;
+
+        min-width: 22px;
+    }
+
+
+    /* -----------------------------------------
+       NOTIFICATION BADGE
+    ----------------------------------------- */
+
+    .notification-badge {
+
+        position: absolute;
+
+        top: 3px;
+
+        right: 3px;
+
+        margin: 0;
+
+        font-size: 9px;
+
+        padding:
+            2px 4px;
+    }
+
+
+    /*
+       Make link relative so badge
+       can position itself
+    */
+
+    .sidebar-nav li a,
+    .sidebar-footer li a {
+
+        position: relative;
+    }
+
+
+    /* -----------------------------------------
+       DIVIDER
+    ----------------------------------------- */
+
+    .sidebar-divider {
+
+        margin:
+            0 10px;
+    }
 }
