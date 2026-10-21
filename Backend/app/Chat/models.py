@@ -234,3 +234,28 @@ class Call(models.Model):
         auto_now_add=True
     )
 
+class MessageReadReceipt(models.Model):
+    message = models.ForeignKey(
+        Message,
+        on_delete=models.CASCADE,
+        related_name="read_receipts"
+    )
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="message_read_receipts"
+    )
+
+    read_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["message", "user"],
+                name="unique_message_read_user"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.user} read message {self.message_id}"

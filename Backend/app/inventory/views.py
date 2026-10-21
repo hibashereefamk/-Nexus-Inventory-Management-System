@@ -537,3 +537,51 @@ class UnreadNotificationCountView(APIView):
             is_read=False
         ).count()
         return Response({"unread_count": count})
+
+
+
+
+import traceback
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
+from .ai_service import ask_nexus_ai
+from .models import Product
+
+class AIAssistantView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        user_prompt = request.data.get('prompt', '')
+        
+        if not user_prompt:
+            return Response({"error": "Prompt parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user_role = getattr(user, 'role', 'staff')
+
+        products = Product.objects.all()
+        product_details = []
+        
+        for p in products:
+            location = getattr(p, 'bin_location', None) or "Unassigned"
+            product_details.append(
+                f"- Product: {p.name} | SKU: {p.sku} | Location: {location} | Total Stock: {p.total_stock} | Priority: {getattr(p, 'priority', 'Normal')}"
+            )
+
+        context_summary = "Current Inventory State:\n" + "\n".join(product_details) if product_details else "No products found in inventory."
+
+        try:
+            ai_response = ask_nexus_ai(
+                user_role=user_role,
+                user_prompt=user_prompt,
+                context_data=context_summary
+            )
+            return Response({
+                "role": user_role,
+                "response": ai_response
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            traceback.print_exc()  # Prints exact error details in server log
+            return Response({"error": f"AI Service Error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

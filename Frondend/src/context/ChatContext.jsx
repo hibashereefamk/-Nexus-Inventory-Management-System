@@ -106,6 +106,7 @@ const currentUser =
 
         rejectCall,
         endCall,
+        sendReadReceipt
 
     } = useChatSocket(
 
@@ -131,6 +132,7 @@ const currentUser =
                 activeConversation,
                 setActiveConversation,
                 openConversation,
+                sendReadReceipt,
 
                 // API / Auth
                 API,

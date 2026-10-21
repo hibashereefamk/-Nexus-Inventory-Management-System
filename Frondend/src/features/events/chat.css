@@ -1442,12 +1442,36 @@
        CHAT WINDOW FULL WIDTH
     ----------------------------------------- */
 
-    .chat-window {
-        width: 100%;
-        min-width: 0;
-        flex: 1;
-        height: 100%;
-    }
+   .chat-window {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-color: #ffffff;
+}
+
+.empty-chat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #64748b;
+  text-align: center;
+  padding: 24px;
+}
+
+.empty-chat-icon {
+  width: 80px;
+  height: 80px;
+  background-color: #f1f5f9;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  color: #3b82f6;
+}
 
 
     /* -----------------------------------------

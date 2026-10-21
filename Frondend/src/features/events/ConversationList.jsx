@@ -1,334 +1,313 @@
 import React, { useEffect, useState } from "react";
 
-import NewChatModal from "./NewChatModal";
 import "./chat.css";
+
+import { UsersRound } from "lucide-react";
 
 import { useChat } from "../../context/ChatContext";
 
+import NewChatModal from "./NewChatModal";
+import NewGroupModal from "./NewGroupModal";
 
 const API = "http://127.0.0.1:8000";
 
-
 const ConversationList = () => {
-
     const {
         activeConversation,
         setActiveConversation
     } = useChat();
 
     const [conversations, setConversations] = useState([]);
-
     const [loading, setLoading] = useState(true);
-
     const [showNewChat, setShowNewChat] = useState(false);
-
+    const [showNewGroup, setShowNewGroup] = useState(false);
     const [error, setError] = useState(null);
-
+    const [search, setSearch] = useState("");
 
     useEffect(() => {
-
         fetchConversations();
-
     }, []);
 
-
     const fetchConversations = async () => {
-
         try {
-
             setLoading(true);
-
             setError(null);
 
-            const token =
-                localStorage.getItem("access_token");
-
+            const token = localStorage.getItem("access_token");
 
             const response = await fetch(
                 `${API}/api/chat/conversations/`,
                 {
                     method: "GET",
-
                     headers: {
                         "Content-Type": "application/json",
-
-                        "Authorization":
-                            `Bearer ${token}`,
+                        Authorization: `Bearer ${token}`,
                     },
                 }
             );
 
-
             if (!response.ok) {
-
-                throw new Error(
-                    "Failed to load conversations."
-                );
-
+                throw new Error("Failed to load conversations.");
             }
-
 
             const data = await response.json();
 
-            setConversations(data);
-
+            setConversations(
+                Array.isArray(data)
+                    ? data
+                    : data.results || data.conversations || []
+            );
 
         } catch (err) {
-
-            console.error(
-                "Conversation error:",
-                err
-            );
-
-            setError(
-                "Unable to load conversations."
-            );
-
-
+            console.error("Conversation error:", err);
+            setError("Unable to load conversations.");
         } finally {
-
             setLoading(false);
-
         }
-
     };
 
-
     const getConversationName = (conversation) => {
-
-        if (
-            conversation.conversation_type === "DIRECT"
-        ) {
-
+        if (conversation.conversation_type === "DIRECT") {
             return (
                 conversation.other_user?.username ||
                 "Direct Chat"
             );
-
         }
 
-        return (
-            conversation.name ||
-            "Group Chat"
-        );
-
+        return conversation.name || "Group Chat";
     };
 
+    const filteredConversations = conversations.filter(
+        (conversation) =>
+            getConversationName(conversation)
+                .toLowerCase()
+                .includes(search.toLowerCase())
+    );
 
     if (loading) {
-
         return (
             <div className="conversation-list">
-
                 <div className="conversation-header">
-
-                    <h3>
-                        Messages
-                    </h3>
-
+                    <h3>Messages</h3>
                 </div>
 
-                <div style={{ padding: 20 }}>
+                <div className="conversation-status">
                     Loading conversations...
                 </div>
-
             </div>
         );
-
     }
-
 
     if (error) {
-
         return (
             <div className="conversation-list">
-
                 <div className="conversation-header">
-
-                    <h3>
-                        Messages
-                    </h3>
-
+                    <h3>Messages</h3>
                 </div>
 
-                <div style={{ padding: 20 }}>
+                <div className="conversation-status error">
                     {error}
                 </div>
-
             </div>
         );
-
     }
 
-
     return (
-
         <div className="conversation-list">
 
+            {/* HEADER */}
             <div className="conversation-header">
 
-                <h3>
-                    Messages
-                </h3>
+                <h3>Messages</h3>
 
+                <div className="chat-actions">
 
-                <button
-                    className="new-chat-button"
-                    onClick={() =>
-                        setShowNewChat(true)
-                    }
-                >
-                    +
-                </button>
+                    {/* New Direct Chat */}
+                    <button
+                        type="button"
+                        className="new-chat-button"
+                        onClick={() => setShowNewChat(true)}
+                        title="New Chat"
+                    >
+                        +
+                    </button>
+
+                    {/* New Group */}
+                    <button
+                        type="button"
+                        className="new-group-button"
+                        onClick={() => setShowNewGroup(true)}
+                        title="Create Group"
+                    >
+                        <UsersRound size={19} />
+                    </button>
+
+                </div>
 
             </div>
 
-
+            {/* SEARCH */}
             <div className="search-box">
 
                 <input
                     type="text"
                     placeholder="Search conversations..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
                 />
 
             </div>
 
-
+            {/* CONVERSATIONS */}
             <div className="conversation-items">
 
-                {conversations.length === 0 ? (
+                {filteredConversations.length === 0 ? (
 
-                    <div
-                        style={{
-                            padding: "30px 20px",
-                            textAlign: "center",
-                            color: "#94a3b8"
-                        }}
-                    >
-                        No conversations yet.
+                    <div className="conversation-status">
+                        {search
+                            ? "No conversations found."
+                            : "No conversations yet."}
                     </div>
 
                 ) : (
 
-                    conversations.map(
-                        (conversation) => (
+                    filteredConversations.map(
+                        (conversation) => {
 
-                            <div
-                                key={conversation.id}
+                            const conversationName =
+                                getConversationName(conversation);
 
-                                className={
-                                    `conversation-item ${
-                                        activeConversation?.id ===
-                                        conversation.id
-                                            ? "active"
-                                            : ""
-                                    }`
-                                }
+                            const isGroup =
+                                conversation.conversation_type ===
+                                "GROUP";
 
-                                onClick={() =>
-                                    setActiveConversation(
-                                        conversation
-                                    )
-                                }
-                            >
-
-                                <div className="avatar">
-
-                                    {getConversationName(
-                                        conversation
-                                    )
-                                        .charAt(0)
-                                        .toUpperCase()
+                            return (
+                                <div
+                                    key={conversation.id}
+                                    className={
+                                        `conversation-item ${
+                                            activeConversation?.id ===
+                                            conversation.id
+                                                ? "active"
+                                                : ""
+                                        }`
                                     }
+                                    onClick={() =>
+                                        setActiveConversation(
+                                            conversation
+                                        )
+                                    }
+                                >
 
-                                </div>
-
-
-                                <div className="conversation-info">
-
-                                    <div className="conversation-top">
-
-                                        <strong>
-                                            {getConversationName(
-                                                conversation
-                                            )}
-                                        </strong>
-
-
-                                        <span>
-
-                                            {
-                                                conversation
-                                                    .last_message
-                                                    ?.created_at
-                                                    ? new Date(
-                                                        conversation
-                                                            .last_message
-                                                            .created_at
-                                                    ).toLocaleTimeString(
-                                                        [],
-                                                        {
-                                                            hour: "2-digit",
-                                                            minute: "2-digit"
-                                                        }
-                                                    )
+                                    {/* Avatar */}
+                                    <div
+                                        className={
+                                            `avatar ${
+                                                isGroup
+                                                    ? "group-avatar"
                                                     : ""
-                                            }
+                                            }`
+                                        }
+                                    >
 
-                                        </span>
+                                        {isGroup ? (
+                                            <UsersRound size={19} />
+                                        ) : (
+                                            conversationName
+                                                .charAt(0)
+                                                .toUpperCase()
+                                        )}
 
                                     </div>
 
+                                    {/* Conversation info */}
+                                    <div className="conversation-info">
 
-                                    <div className="conversation-bottom">
+                                        <div className="conversation-top">
 
-                                        <p>
+                                            <strong>
+                                                {conversationName}
+                                            </strong>
 
-                                            {
-                                                conversation
-                                                    .last_message
-                                                    ?.content ||
-                                                "No messages yet"
-                                            }
+                                            <span>
+                                                {
+                                                    conversation
+                                                        .last_message
+                                                        ?.created_at
+                                                        ? new Date(
+                                                            conversation
+                                                                .last_message
+                                                                .created_at
+                                                        ).toLocaleTimeString(
+                                                            [],
+                                                            {
+                                                                hour: "2-digit",
+                                                                minute: "2-digit"
+                                                            }
+                                                        )
+                                                        : ""
+                                                }
+                                            </span>
 
-                                        </p>
+                                        </div>
+
+                                        <div className="conversation-bottom">
+
+                                            <p>
+                                                {
+                                                    conversation
+                                                        .last_message
+                                                        ?.content ||
+                                                    "No messages yet"
+                                                }
+                                            </p>
+
+                                        </div>
 
                                     </div>
 
                                 </div>
-
-                            </div>
-
-                        )
+                            );
+                        }
                     )
 
                 )}
 
             </div>
 
-
-            {/* NEW CHAT MODAL */}
-
+            {/* NEW DIRECT CHAT MODAL */}
             {showNewChat && (
-
                 <NewChatModal
-
                     onClose={() => {
                         setShowNewChat(false);
-
-                        // Refresh conversations
                         fetchConversations();
                     }}
-
                 />
+            )}
 
+            {/* NEW GROUP MODAL */}
+            {showNewGroup && (
+                <NewGroupModal
+                    onClose={() => {
+                        setShowNewGroup(false);
+                    }}
+
+                    onCreated={(newGroup) => {
+
+                        setConversations((prev) => [
+                            newGroup,
+                            ...prev
+                        ]);
+
+                        setActiveConversation(newGroup);
+
+                        setShowNewGroup(false);
+                    }}
+                />
             )}
 
         </div>
-
     );
-
 };
-
 
 export default ConversationList;

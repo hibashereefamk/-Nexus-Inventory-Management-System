@@ -6,7 +6,7 @@ from channels.db import database_sync_to_async
 from .models import (
     Conversation,
     ConversationMember,
-    Message
+    Message,MessageReadReceipt
 )
 
 
@@ -61,10 +61,11 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
 
         message_type = content.get("type")
 
+    # =====================================================
+    # MESSAGE READ
+    # =====================================================
 
-    # =====================================================
-    # NORMAL MESSAGE
-    # =====================================================
+        
 
         if message_type == "message":
 
@@ -194,6 +195,30 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             result["updated_at"],
     }
         )
+
+            return
+
+        if message_type == "message_read":
+
+            message_id = content.get("message_id")
+
+            if not message_id:
+                return
+
+            result = await self.mark_message_as_read(message_id)
+
+            if not result:
+                return
+
+            await self.channel_layer.group_send(
+        self.room_group_name,
+        {
+            "type": "message_read",
+            "message_id": result["message_id"],
+            "user_id": result["user_id"],
+            "read_at": result["read_at"],
+        }
+    )
 
             return
 
@@ -647,6 +672,57 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                 message.updated_at.isoformat(),
 
         }
+
+    
+    # =====================================================
+# MARK MESSAGE AS READ
+# =====================================================
+
+    @database_sync_to_async
+    def mark_message_as_read(self, message_id):
+
+        try:
+            message = Message.objects.get(
+            id=message_id,
+            conversation_id=self.conversation_id,
+            is_deleted=False
+        )
+
+        except Message.DoesNotExist:
+            return None
+
+    # ---------------------------------------------
+    # User cannot mark their own message as read
+    # ---------------------------------------------
+
+        if message.sender_id == self.user.id:
+            return None
+
+    # ---------------------------------------------
+    # Create read receipt
+    # ---------------------------------------------
+
+        receipt, created = MessageReadReceipt.objects.get_or_create(
+        message=message,
+        user=self.user
+    )
+
+    # ---------------------------------------------
+    # Update last read message
+    # ---------------------------------------------
+
+        ConversationMember.objects.filter(
+        conversation_id=self.conversation_id,
+        user=self.user
+    ).update(
+        last_read_message=message
+    )
+
+        return {
+        "message_id": message.id,
+        "user_id": self.user.id,
+        "read_at": receipt.read_at.isoformat()
+    }
     async def call_offer(self, event):
 
     # Don't send caller's offer back to caller
@@ -753,4 +829,23 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
 
         "sender_id":
             event["sender_id"],
+    })
+
+    # =====================================================
+# MESSAGE READ EVENT
+# =====================================================
+
+    async def message_read(self, event):
+
+        await self.send_json({
+        "type": "message_read",
+
+        "message_id":
+            event["message_id"],
+
+        "user_id":
+            event["user_id"],
+
+        "read_at":
+            event["read_at"],
     })

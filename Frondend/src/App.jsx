@@ -36,6 +36,7 @@ import OrderReviewPage from "./features/events/OrderReviewPage.jsx";
 import TeamChat from "./features/events/TeamChat.jsx";
 import { ChatProvider } from "./context/ChatContext.jsx";
 import ChatPage from "./features/events/ChatPage.jsx";
+import AIAssistant from "./componenets/AIAssistant.jsx";
 
 
 function App() {
@@ -59,6 +60,7 @@ function App() {
     <Route path="/inventory/history" element={<ProcurementHistory />} />
     <Route path="/chat"  element={<ChatProvider><ChatPage /></ChatProvider>}/>
     <Route path="/requests" element={<SupplyRequest />} />
+    <Route path="/ai-assistant" element={<AIAssistant />} />
     <Route path="/inventory/alerts" element={<InventoryAlertPage />} />
     <Route path="/inventory" element={<ProductList />}/>
     <Route path="/inventory/reorder/:id" element={<InventoryReorderForm/>} />

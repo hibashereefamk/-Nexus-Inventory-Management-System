@@ -17,11 +17,10 @@
 
 
 /* =========================================================
-   SIDEBAR
+   SIDEBAR BASE
 ========================================================= */
 
 .sidebar {
-
     width: 260px;
     height: 100vh;
 
@@ -39,16 +38,9 @@
 
     box-sizing: border-box;
 
-    font-family:
-        'Segoe UI',
-        Inter,
-        sans-serif;
+    font-family: 'Segoe UI', Inter, sans-serif;
 
     z-index: 1000;
-
-    /*
-       Smoothly change from 260px to 72px
-    */
     transition: width 0.25s ease;
 }
 
@@ -58,97 +50,70 @@
 ========================================================= */
 
 .sidebar-nameplate {
-
     display: flex;
-
     align-items: center;
-
     padding: 20px 24px;
-
     gap: 12px;
-
     box-sizing: border-box;
-
     white-space: nowrap;
 }
-
 
 .logo-icon {
-
     width: 32px;
     height: 32px;
-
     min-width: 32px;
-
     display: flex;
-
     align-items: center;
     justify-content: center;
-
     background: var(--sidebar-active);
-
     color: #ffffff;
-
     border-radius: 6px;
-
     font-weight: 700;
-
     font-size: 16px;
 }
 
-
 .nameplate-text {
-
     display: flex;
-
     flex-direction: column;
-
     line-height: 1.1;
-
     overflow: hidden;
-
     white-space: nowrap;
 }
 
-
 .brand-name {
-
     font-size: 16px;
-
     font-weight: 700;
-
     letter-spacing: 1px;
-
     color: var(--text-main);
 }
 
-
 .brand-sub {
-
     font-size: 9px;
-
     font-weight: 600;
-
     color: var(--text-muted);
-
     letter-spacing: 1.5px;
-
     margin-top: 2px;
 }
 
 
 /* =========================================================
-   DIVIDER
+   DIVIDER & LABELS
 ========================================================= */
 
 .sidebar-divider {
-
     border: 0;
-
-    border-top:
-        1px solid var(--border-color);
-
+    border-top: 1px solid var(--border-color);
     margin: 0 16px;
+}
+
+.sidebar-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.75px;
+    color: var(--text-muted);
+    padding-left: 8px;
+    margin: 0 0 8px;
+    font-weight: 600;
 }
 
 
@@ -157,64 +122,24 @@
 ========================================================= */
 
 .sidebar-nav {
-
     flex: 1;
-
     overflow-y: auto;
-
-    overflow-x: hidden;
-
     padding: 20px 16px;
-
-    /*
-       Hide scrollbar
-    */
-
     scrollbar-width: none;
 }
 
 .sidebar-nav::-webkit-scrollbar {
-
     display: none;
 }
 
-
 .sidebar-nav ul,
 .sidebar-footer ul {
-
     list-style: none;
-
     padding: 0;
-
     margin: 0;
-
     display: flex;
-
     flex-direction: column;
-
     gap: 4px;
-}
-
-
-/* =========================================================
-   SECTION LABEL
-========================================================= */
-
-.sidebar-label {
-
-    font-size: 11px;
-
-    text-transform: uppercase;
-
-    letter-spacing: 0.75px;
-
-    color: var(--text-muted);
-
-    padding-left: 8px;
-
-    margin: 0 0 8px;
-
-    font-weight: 600;
 }
 
 
@@ -224,328 +149,183 @@
 
 .sidebar-nav li a,
 .sidebar-footer li a {
-
     display: flex;
-
     align-items: center;
-
     width: 100%;
-
     min-height: 42px;
-
     padding: 10px 12px;
-
     box-sizing: border-box;
-
     color: var(--text-muted);
-
     text-decoration: none;
-
     border-radius: 6px;
-
-    transition:
-        background-color 0.15s ease,
-        color 0.15s ease;
-
+    transition: background-color 0.15s ease, color 0.15s ease;
     white-space: nowrap;
+    position: relative;
 }
-
-
-/* =========================================================
-   HOVER
-========================================================= */
 
 .sidebar-nav li a:hover,
 .sidebar-footer li a:hover {
-
-    background-color:
-        rgba(255, 255, 255, 0.04);
-
+    background-color: rgba(255, 255, 255, 0.04);
     color: var(--text-main);
 }
 
-
-/* =========================================================
-   ICON
-========================================================= */
-
 .nav-icon {
-
     width: 20px;
-
     min-width: 20px;
-
     height: 20px;
-
     display: flex;
-
     align-items: center;
-
     justify-content: center;
-
-    transition:
-        color 0.15s ease;
+    transition: color 0.15s ease;
 }
 
-
-/* =========================================================
-   TEXT
-========================================================= */
-
 .nav-text {
-
     font-size: 13.5px;
-
     font-weight: 500;
-
     margin-left: 12px;
-
     white-space: nowrap;
 }
 
 
 /* =========================================================
-   ACTIVE
+   ACTIVE STATES
 ========================================================= */
 
 .sidebar-nav li a.active {
-
-    background-color:
-        var(--sidebar-active);
-
+    background-color: var(--sidebar-active);
     color: #ffffff;
 }
-
 
 .sidebar-nav li a.active .nav-icon {
-
     color: #ffffff;
 }
 
-
-/* =========================================================
-   CHAT
-========================================================= */
-
 .chat-icon {
-
     color: var(--chat-accent);
 }
 
-
 .sidebar-footer li a.active.chat-active {
-
-    background-color:
-        rgba(16, 185, 129, 0.15);
-
-    color:
-        var(--chat-accent);
-
+    background-color: rgba(16, 185, 129, 0.15);
+    color: var(--chat-accent);
     font-weight: 600;
 }
 
-
-/* =========================================================
-   AI
-========================================================= */
-
 .ai-icon {
-
     color: var(--ai-accent);
 }
 
-
 .sidebar-footer li a.active.ai-active {
-
-    background-color:
-        rgba(139, 92, 246, 0.15);
-
-    color:
-        var(--ai-accent);
-
+    background-color: rgba(139, 92, 246, 0.15);
+    color: var(--ai-accent);
     font-weight: 600;
 }
 
 
 /* =========================================================
-   NOTIFICATION BADGE
+   BADGE & FOOTER
 ========================================================= */
 
 .notification-badge {
-
     margin-left: auto;
-
     background-color: #ef4444;
-
     color: white;
-
     font-size: 11px;
-
     font-weight: 600;
-
     padding: 2px 6px;
-
     border-radius: 10px;
-
     line-height: 1;
 }
 
-
-/* =========================================================
-   FOOTER
-========================================================= */
-
 .sidebar-footer {
-
     margin-top: auto;
-
     padding: 16px;
-
-    background-color:
-        var(--sidebar-bg);
+    background-color: var(--sidebar-bg);
 }
 
 
 /* =========================================================
-   RESPONSIVE SIDEBAR
-   TABLET / SHORT WINDOW
-
-   1000px and below
+   RESPONSIVE COLLAPSED VIEW (1000px and below)
 ========================================================= */
 
 @media (max-width: 1000px) {
 
     .sidebar {
-
         width: 72px;
     }
 
-
-    /* -----------------------------------------
-       BRAND
-    ----------------------------------------- */
-
     .sidebar-nameplate {
-
         justify-content: center;
-
         padding: 20px 0;
-
     }
 
-
-    .nameplate-text {
-
+    .nameplate-text,
+    .sidebar-label,
+    .nav-text {
         display: none;
     }
-
-
-    /* -----------------------------------------
-       SECTION LABEL
-    ----------------------------------------- */
-
-    .sidebar-label {
-
-        display: none;
-    }
-
-
-    /* -----------------------------------------
-       NAVIGATION
-    ----------------------------------------- */
 
     .sidebar-nav {
-
-        padding:
-            20px 10px;
+        padding: 20px 10px;
     }
-
 
     .sidebar-footer {
-
-        padding:
-            16px 10px;
+        padding: 16px 10px;
     }
-
-
-    /* -----------------------------------------
-       LINKS
-    ----------------------------------------- */
 
     .sidebar-nav li a,
     .sidebar-footer li a {
-
         justify-content: center;
-
         padding: 10px 0;
-
     }
-
-
-    /* -----------------------------------------
-       TEXT HIDDEN
-    ----------------------------------------- */
-
-    .nav-text {
-
-        display: none;
-    }
-
-
-    /* -----------------------------------------
-       ICON
-    ----------------------------------------- */
 
     .nav-icon {
-
         margin: 0;
-
         width: 22px;
-
         min-width: 22px;
     }
 
-
-    /* -----------------------------------------
-       NOTIFICATION BADGE
-    ----------------------------------------- */
-
     .notification-badge {
-
         position: absolute;
-
         top: 3px;
-
         right: 3px;
-
         margin: 0;
-
         font-size: 9px;
-
-        padding:
-            2px 4px;
+        padding: 2px 4px;
     }
-
-
-    /*
-       Make link relative so badge
-       can position itself
-    */
-
-    .sidebar-nav li a,
-    .sidebar-footer li a {
-
-        position: relative;
-    }
-
-
-    /* -----------------------------------------
-       DIVIDER
-    ----------------------------------------- */
 
     .sidebar-divider {
+        margin: 0 10px;
+    }
 
-        margin:
-            0 10px;
+    /* ----------------------------------------------------
+       TOOLTIP DEFINITIONS
+    ---------------------------------------------------- */
+
+    .sidebar-nav li a::after,
+    .sidebar-footer li a::after {
+        content: attr(data-tooltip);
+        position: fixed;
+        left: 80px;
+        background: #0f172a;
+        color: #ffffff;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        white-space: nowrap;
+        pointer-events: none;
+        opacity: 0;
+        visibility: hidden;
+        z-index: 99999;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+        transition: opacity 0.15s ease, transform 0.15s ease;
+        transform: translateX(-5px);
+    }
+
+    .sidebar-nav li a:hover::after,
+    .sidebar-footer li a:hover::after {
+        opacity: 1;
+        visibility: visible;
+        transform: translateX(0);
     }
 }

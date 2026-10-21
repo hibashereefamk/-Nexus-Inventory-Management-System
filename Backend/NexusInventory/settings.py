@@ -18,6 +18,10 @@ import os
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
@@ -147,7 +151,7 @@ ROOT_URLCONF = 'NexusInventory.urls'
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173","http://localhost:3000",
-    "http://127.0.0.1:5173",'http://127.0.0.1:300',
+    "http://127.0.0.1:5173",'http://127.0.0.1:3000',
 
 ]
 

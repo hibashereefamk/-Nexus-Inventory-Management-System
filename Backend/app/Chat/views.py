@@ -782,3 +782,82 @@ class UpdateCallView(APIView):
         return Response(
             serializer.data
         )
+
+
+
+    from django.db import transaction
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
+
+from .models import Conversation, ConversationMember
+from app.accounts.models import User
+
+
+class CreateGroupConversationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request):
+
+        group_name = request.data.get("name")
+        user_ids = request.data.get("user_ids", [])
+
+        if not group_name:
+            return Response(
+                {"error": "Group name is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not isinstance(user_ids, list) or not user_ids:
+            return Response(
+                {"error": "At least one member is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Remove duplicates
+        user_ids = list(set(user_ids))
+
+        # Get selected users
+        users = User.objects.filter(id__in=user_ids)
+
+        if users.count() != len(user_ids):
+            return Response(
+                {"error": "One or more selected users do not exist."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Create conversation
+        conversation = Conversation.objects.create(
+            conversation_type="GROUP",
+            name=group_name,
+            created_by=request.user
+        )
+
+        # Add creator
+        ConversationMember.objects.create(
+            conversation=conversation,
+            user=request.user
+        )
+
+        # Add selected members
+        for user in users:
+            if user.id != request.user.id:
+                ConversationMember.objects.create(
+                    conversation=conversation,
+                    user=user
+                )
+
+        return Response(
+            {
+                "id": conversation.id,
+                "conversation_type": conversation.conversation_type,
+                "name": conversation.name,
+                "created_by": request.user.id,
+                "members": list(
+                    conversation.members.values_list("user_id", flat=True)
+                )
+            },
+            status=status.HTTP_201_CREATED
+        )

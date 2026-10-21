@@ -3,7 +3,7 @@ from django.urls import path
 from .views import (
     ConversationListView,
     EmployeeSearchView,CreateDirectConversationView,MessageHistoryView,
-    ChatFileUploadView,StartCallView,UpdateCallView
+    ChatFileUploadView,StartCallView,UpdateCallView,CreateGroupConversationView
 )
 
 
@@ -45,6 +45,10 @@ urlpatterns = [
         UpdateCallView.as_view(),
         name="update-call"
     ),
-
+path(
+    "conversations/group/",
+    CreateGroupConversationView.as_view(),
+    name="group-conversation"
+),
 
 ]

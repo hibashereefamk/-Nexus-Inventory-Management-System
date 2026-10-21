@@ -1,6 +1,11 @@
 from django.urls import include, path
-from .views import (NotificationMarkReadView, OrderShippingReviewDetailView, Productview,IssueReportCreateView,ManagerIssueListView,NotificationListView,ManagerEscalateIssueView,DepartmentStaffListView, VerificationViewSet)
+from .views import (NotificationMarkReadView, OrderShippingReviewDetailView, Productview,
+                    IssueReportCreateView,ManagerIssueListView,
+                    NotificationListView,ManagerEscalateIssueView,
+                    DepartmentStaffListView, VerificationViewSet,AIAssistantView,)
 from rest_framework.routers import DefaultRouter
+
+
 
 router = DefaultRouter()
 router.register(r'verify-products', VerificationViewSet, basename='verify-products')
@@ -14,7 +19,8 @@ urlpatterns = [
     path('notifications/<int:pk>/', NotificationMarkReadView.as_view(),name='notification-read'),
     path('issue-reports/<int:pk>/escalate/',ManagerEscalateIssueView.as_view(),name='manager_report'),
     path('manager-department-assign/',DepartmentStaffListView.as_view(),name='dept-manger-view'),
-    path('order-custom-details/',OrderShippingReviewDetailView.as_view(),name='order-custom-details'),  
+    path('order-custom-details/',OrderShippingReviewDetailView.as_view(),name='order-custom-details'), 
+    path('ai-assistant/', AIAssistantView.as_view(), name='ai-assistant'), 
     path('', include(router.urls)),
 ]
 
